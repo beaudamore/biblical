@@ -1,5 +1,19 @@
 # Biblical Persona LoRA — Multi-Voice Scripture Fine-Tuning
 
+![biblical — Bringing Scripture into the Digital Age](docs/screenshots/banner.jpg)
+
+## 🚀 Live in Production
+
+> **The LoRA is deployed and publicly available at [chat.crossandfaith.com](https://chat.crossandfaith.com)** (Google sign-in) — landing page at **[crossandfaith.com](https://www.crossandfaith.com)**.
+
+This is **not a research artifact**. It is a working multi-tenant deployment with real Google OAuth sign-up, production sampling, and weeks of real user conversations. The trained LoRA is hot-attached to **vLLM** behind **Open WebUI**, so users can pick the `biblical` model directly or use Open WebUI's compare-models feature to A/B against base `Qwen3-14b` (or any other model in the workspace) on the same prompt.
+
+> Side-by-side example from the production UI on the same prompt this README documents — the `biblical` LoRA gives Pauline first-person testimony ("*I have seen the Lord, and by His grace I bear witness...*") while base `Qwen3-14b` gives an encyclopedia-style answer ("*The early apostolic communities, particularly those described in the New Testament...*"). Full text in [`docs/comparisons/early-apostolic-communities.md`](docs/comparisons/early-apostolic-communities.md).
+
+---
+
+## What it is
+
 A two-stage **QLoRA** fine-tune of **Qwen3-14B** that teaches the model to speak in **26 distinct biblical voices** (plus separate adapters for **Augustine** and **Alphonsus de Liguori**). Built on **Unsloth** with 4-bit pre-quantization, trained on an NVIDIA **DGX Spark** (128 GB unified memory), deployed via **vLLM** on a single A5000.
 
 The pipeline pairs **persona-conditioned Q&A generation** (with a voice-differentiation quality gate that fails closed on >30% template contamination) with **raw-text continuation augmentation** to teach prose cadence, then layers a **DPO** dataset across **three engineered rejection strategies** — voice drift, scripture fabrication, and shallow platitude. Includes a regex-based per-source data-cleaning pipeline, deployment notes, and an **LLM-as-judge** evaluation showing the LoRA scoring **+12** over the base model on a 6-dimension voice-fidelity rubric.
@@ -20,6 +34,7 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 | **Data engineering** | Per-source regex cleaner (Project Gutenberg / sacred-texts.com / ChristianFOSS / Liguori imprimaturs); sentence-aware char chunking; `tiktoken` token-aware chunking for continuation tasks; ShareGPT format |
 | **Evaluation** | LLM-as-judge with 6-dimension rubric; voice-differentiation quality gate; cold-reload adapter sanity check; per-persona contamination metrics |
 | **Infra / Ops** | NGC PyTorch container debugging on aarch64 (`causal_conv1d` source-build with `CAUSAL_CONV1D_FORCE_BUILD=TRUE`); strict Unsloth import-order discipline; Tailscale-bridged DGX→laptop workflow; vLLM LoRA hot-attach |
+| **Production deployment** | **Live multi-tenant chat** at [chat.crossandfaith.com](https://chat.crossandfaith.com); Open WebUI surface; Google OAuth sign-up; vLLM serving with `--enable-lora`; weeks of real user traffic |
 | **Tooling built** | OpenAI-compatible API generation (OpenRouter / local vLLM swap); `git-sub-sync.sh` (custom git-submodule lifecycle script); reproducible `regenerate.sh` for evaluation PDFs |
 
 ---
