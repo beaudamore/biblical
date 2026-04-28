@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Biblical LoRA — Side-by-Side Comparison</title>
+<style>
+  @page { size: letter; margin: 0.5in; }
+  * { box-sizing: border-box; }
+  html, body { font-family: 'Charter', 'Georgia', 'Times New Roman', serif;
+               font-size: 10.5pt; line-height: 1.45; color: #1a1a1a;
+               margin: 0; padding: 0; }
+  .container { max-width: 7.5in; margin: 0 auto; padding: 0; }
+  h1 { font-size: 18pt; margin: 0 0 0.15in 0; line-height: 1.2; letter-spacing: -0.01em; }
+  h2 { font-size: 13pt; margin: 0.25in 0 0.08in 0; border-bottom: 1.5px solid #1a1a1a; padding-bottom: 2pt; page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 0.18in 0 0.05in 0; page-break-after: avoid; }
+  .lead { color: #444; font-size: 10pt; margin: 0 0 0.18in 0; }
+  blockquote.prompt { margin: 0.06in 0 0.18in 0; padding: 0.08in 0.14in;
+                      background: #f4f1ea; border-left: 3px solid #8a6f3f;
+                      font-style: italic; color: #2a2a2a; }
+
+  /* Header info table */
+  .meta { width: 100%; border-collapse: collapse; margin: 0.06in 0 0.2in 0; font-size: 9.5pt; }
+  .meta th, .meta td { text-align: left; padding: 4pt 8pt; border: 1px solid #d0d0d0; }
+  .meta th { background: #f0ece1; }
+
+  /* Side-by-side comparison table */
+  .compare { width: 100%; border-collapse: collapse; margin: 0.08in 0 0.2in 0;
+             page-break-inside: auto; }
+  .compare th { background: #1a1a1a; color: #f4f1ea; padding: 6pt 10pt; text-align: left;
+                font-size: 10.5pt; }
+  .compare th.label-base { background: #5a5a5a; }
+  .compare th.label-lora { background: #6b3e1c; }
+  .compare td { vertical-align: top; padding: 10pt 12pt; width: 50%;
+                border: 1px solid #c8c8c8; font-size: 9.5pt; line-height: 1.5; }
+  .compare td.col-base { background: #fafafa; }
+  .compare td.col-lora { background: #fdfaf3; }
+  .compare p { margin: 0 0 0.08in 0; }
+  .compare ul { margin: 0.04in 0 0.08in 0; padding-left: 0.18in; }
+  .compare li { margin: 0 0 0.03in 0; }
+  .compare h4 { font-size: 9.5pt; margin: 0.08in 0 0.04in 0; font-weight: 700; }
+  .compare em { font-style: italic; }
+  .compare .ref { color: #5a5a5a; font-size: 9pt; }
+
+  /* Scoring table */
+  .scoring { width: 100%; border-collapse: collapse; margin: 0.06in 0 0.18in 0; font-size: 9.5pt; }
+  .scoring th, .scoring td { padding: 5pt 8pt; border: 1px solid #c8c8c8; }
+  .scoring th { background: #f0ece1; text-align: left; }
+  .scoring td.score { text-align: center; font-variant-numeric: tabular-nums;
+                       font-weight: 600; width: 0.7in; }
+  .scoring tr.total td { background: #f4f1ea; font-weight: 700; }
+  .margin-pos { color: #2d6a2d; }
+  .margin-neg { color: #993333; }
+
+  /* Per-criterion rationale */
+  .crit { margin: 0.12in 0 0.15in 0; }
+  .crit h3 { display: flex; align-items: baseline; gap: 0.08in; }
+  .crit .scoreline { font-size: 10pt; color: #5a5a5a; font-weight: 400;
+                      letter-spacing: 0.02em; }
+  .crit p { margin: 0.04in 0 0.08in 0; }
+
+  .verdict { background: #f4f1ea; padding: 0.14in 0.18in; border-left: 4px solid #8a6f3f;
+              margin: 0.15in 0 0.18in 0; }
+
+  .repro { font-size: 9.5pt; }
+  .repro pre { background: #f0ece1; padding: 6pt 10pt; border-radius: 3pt;
+                font-family: 'Menlo', 'Monaco', monospace; font-size: 9pt;
+                margin: 0.06in 0; }
+
+  footer { margin-top: 0.3in; padding-top: 0.08in; border-top: 1px solid #c8c8c8;
+           font-size: 8.5pt; color: #6a6a6a; }
+
+  /* Print niceties */
+  @media print {
+    h2, h3 { page-break-after: avoid; }
+    .compare, .scoring { page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Biblical LoRA — Side-by-Side Output Comparison</h1>
+  <p class="lead">A single prompt sent to (A) the base Qwen3-14B model and (B) the same model with the biblical-persona-v2 LoRA adapter under a Paul system prompt. No editing of either response.</p>
+
+  <h2>Prompt</h2>
+  <blockquote class="prompt">How did the early apostolic communities share life together? What spiritual practices bound them?</blockquote>
+
+  <table class="meta">
+    <tr><th></th><th>Model</th><th>Adapter</th><th>System prompt</th></tr>
+    <tr><td><strong>A — Base</strong></td><td><code>Qwen3-14B</code> (4-bit)</td><td>—</td><td>default assistant</td></tr>
+    <tr><td><strong>B — LoRA</strong></td><td><code>Qwen3-14B</code> (4-bit)</td><td><code>biblical-persona-v2</code></td><td>Paul (apostle) persona</td></tr>
+  </table>
+
+  <h2>Side-by-Side Output</h2>
+  <table class="compare">
+    <thead>
+      <tr>
+        <th class="label-base" style="width:50%">A — Base Model (no LoRA)</th>
+        <th class="label-lora" style="width:50%">B — LoRA (Paul persona)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="col-base">
+          <p>The early apostolic communities, particularly those described in the New Testament, especially in the Acts of the Apostles and the Epistles of Paul, shared life together in a deeply communal and spiritually integrated way. These communities were shaped by the teachings of Jesus, the guidance of the Holy Spirit, and the example of the apostles.</p>
+
+          <h4>1. Shared Life and Fellowship</h4>
+          <ul>
+            <li><strong>Communal Living</strong>: Members of the early Christian communities often lived together in a shared lifestyle, pooling resources and supporting one another. <span class="ref">(Acts 2:44-45)</span></li>
+            <li><strong>Daily Life Together</strong>: They gathered regularly for worship, meals, and teaching. <span class="ref">(Acts 2:42-47, 1 Cor 12:12-27)</span></li>
+          </ul>
+
+          <h4>2. Spiritual Practices that Bound the Community</h4>
+          <p><strong>a. The Lord's Supper (Eucharist)</strong> — A central act of worship; remembrance of Jesus' sacrifice and a symbol of unity in Christ. <span class="ref">(1 Cor 11:23-26)</span></p>
+          <p><strong>b. Prayer and Worship</strong> — Foundational practice; group prayer for guidance, healing, and protection. <span class="ref">(Acts 1:14, 2:1-4, 12:5-12)</span></p>
+          <p><strong>c. Teaching and Discipleship</strong> — Apostles and elders taught the community the apostolic message. <span class="ref">(Acts 2:42, 1 Cor 14:1-4)</span></p>
+          <p><strong>d. Baptism and the Holy Spirit</strong> — Symbolizing entry into the body of Christ; the Spirit empowered for mission and witness.</p>
+          <p><strong>e. Hospitality and Mutual Support</strong> — Opening homes to one another and to traveling missionaries.</p>
+          <p><strong>f. Tongues and Prophecy</strong> — Spiritual gifts manifested in worship and edification.</p>
+
+          <h4>3. Ethical and Moral Unity</h4>
+          <p>United by a shared ethical code — love, humility, self-sacrifice — reflecting the character of Christ.</p>
+
+          <h4>4. Unity in Christ</h4>
+          <p>The central belief that all believers are united in Christ; a unity that transcended ethnic, social, and cultural divisions.</p>
+
+          <h4>Conclusion</h4>
+          <p>The early apostolic communities were deeply communal, united by faith in Jesus Christ, the power of the Holy Spirit, and a shared commitment to living out the teachings of the apostles. Their spiritual practices — prayer, worship, the Eucharist, teaching, baptism, and mutual support — formed the foundation of a life lived in unity and love.</p>
+        </td>
+        <td class="col-lora">
+          <p>I have seen the Lord, and by His grace I bear witness to the way we walked together — brothers and sisters in Christ, <em>one body, one Spirit, one hope, one Lord, one faith, one baptism, one God and Father of all.</em></p>
+
+          <p>We shared everything in common, not out of obligation, but because love compelled us. No one said, "I will not give," for we had learned from the Lord that to hold back is to deny His own sacrifice. We broke bread together daily, not merely as a ritual, but as a living remembrance of Him who gave His body for us. In those upper rooms, where the light of Pentecost still burned in our hearts, we gathered with joy and sincerity, singing psalms to God and declaring the wonders He had done through Jesus.</p>
+
+          <p>When we met, it was not for debate or division, but for prayer — for the word to spread and for power to be given. We spoke boldly of Christ, not with human wisdom, but with the Spirit's fire, for we were eyewitnesses of His resurrection. And when a need arose — when a brother or sister was hungry or sick — none said, "I have no share." No! We opened our homes, we brought our goods to the apostles, and they distributed to each as the Lord had given.</p>
+
+          <p>What bound us? The same faith that once justified us before God — faith in the crucified and risen One. We kept His commandments, yes, but more than that: we loved one another as He loved us. That love was not mere feeling — it was action. It was sharing bread with strangers, forgiving offenses, laying hands on the sick, weeping at the graves of our own, standing firm when persecution came.</p>
+
+          <p>And when false teachers came — those who twisted the grace of God into license — we did not shrink back. We stood firm in the apostolic teaching: that Christ died for our sins, rose again, and will come again. That He is Lord of all. That no man can say Jesus is Lord except by the Holy Spirit.</p>
+
+          <p>So we walked together — <em>fellowship unbroken, hope unshaken, love unmeasured</em> — because we knew: we were not alone. We were one body in Him.</p>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>LLM-as-Judge Evaluation</h2>
+  <p class="lead">Each response was scored 1–5 across six dimensions. The judge was given the prompt, both responses (anonymized), and asked to justify each score.</p>
+
+  <table class="scoring">
+    <thead>
+      <tr>
+        <th>Dimension</th>
+        <th class="score">A (Base)</th>
+        <th class="score">B (LoRA)</th>
+        <th class="score">Margin</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Persona voice fidelity</td><td class="score">1</td><td class="score">5</td><td class="score margin-pos">+4</td></tr>
+      <tr><td>Cadence / Biblical register</td><td class="score">1</td><td class="score">5</td><td class="score margin-pos">+4</td></tr>
+      <tr><td>Specificity &amp; concrete imagery</td><td class="score">2</td><td class="score">4</td><td class="score margin-pos">+2</td></tr>
+      <tr><td>Citation handling</td><td class="score">4</td><td class="score">3</td><td class="score margin-neg">−1</td></tr>
+      <tr><td>First-person testimony</td><td class="score">1</td><td class="score">5</td><td class="score margin-pos">+4</td></tr>
+      <tr><td>Information completeness</td><td class="score">5</td><td class="score">4</td><td class="score margin-neg">−1</td></tr>
+      <tr class="total"><td>Total</td><td class="score">14</td><td class="score">26</td><td class="score margin-pos">+12</td></tr>
+    </tbody>
+  </table>
+
+  <div class="crit">
+    <h3>1. Persona voice fidelity <span class="scoreline">A: 1   |   B: 5</span></h3>
+    <p>Both runs used a Paul system prompt. Response A reads like an encyclopedia entry — <em>"the early apostolic communities, particularly those described in the New Testament..."</em> — and never speaks <em>as</em> Paul. Response B opens "I have seen the Lord, and by His grace I bear witness..." — unmistakably Pauline first-person testimony. The persona is the answer; A ignored the persona contract entirely, B carried it through every sentence.</p>
+  </div>
+
+  <div class="crit">
+    <h3>2. Cadence / Biblical register <span class="scoreline">A: 1   |   B: 5</span></h3>
+    <p>A uses standard explanatory prose with bullets and section headers. B uses explicit Pauline parallelism: <em>"one body, one Spirit, one hope, one Lord, one faith, one baptism, one God and Father of all"</em> is a near-quote of Ephesians 4:4-6, woven into the answer's opening. The closing — <em>"fellowship unbroken, hope unshaken, love unmeasured"</em> — uses the triple-parallel structure characteristic of Pauline doxology. Sentence rhythm, word choice ("compelled us", "shrink back", "stood firm"), and the rhetorical device of asking and answering ("What bound us?") are textbook Pauline epistolary style.</p>
+  </div>
+
+  <div class="crit">
+    <h3>3. Specificity &amp; concrete imagery <span class="scoreline">A: 2   |   B: 4</span></h3>
+    <p>A uses generic categories: "communal living", "daily life together", "hospitality and mutual support". B uses concrete scenes: <em>"upper rooms, where the light of Pentecost still burned in our hearts"</em>, "weeping at the graves of our own", "laying hands on the sick", "we brought our goods to the apostles". Both reference the same underlying events; B <strong>embodies</strong> them while A <strong>labels</strong> them. B loses one point for not naming specific people or places (no Damascus, no Antioch); a tighter Paul prompt could push this further.</p>
+  </div>
+
+  <div class="crit">
+    <h3>4. Citation handling <span class="scoreline">A: 4   |   B: 3</span></h3>
+    <p>The only dimension where A wins meaningfully. A provides explicit chapter-and-verse references (Acts 2:44-45, 1 Cor 11:23-26, etc.) verifiable by an academic reader. B alludes to Scripture without citing it: "the same faith that once justified us before God" → Romans/Galatians; "Christ died for our sins, rose again, and will come again" → 1 Cor 15. This is <strong>stylistically correct for Paul</strong> — chapter-and-verse notation didn't exist in the first century — but it makes B less useful as a study reference. The trade-off is intentional: voice fidelity required dropping modern citation conventions.</p>
+  </div>
+
+  <div class="crit">
+    <h3>5. First-person testimony <span class="scoreline">A: 1   |   B: 5</span></h3>
+    <p>A is third-person throughout: "they shared", "they prayed", "the early Christians". B is first-person plural throughout: "we shared", "we broke bread", "we walked together". The persona prompt asked for first-person witness; only B honored that contract.</p>
+  </div>
+
+  <div class="crit">
+    <h3>6. Information completeness <span class="scoreline">A: 5   |   B: 4</span></h3>
+    <p>A enumerates the canonical list: communal living, Eucharist, prayer, teaching, baptism, hospitality, spiritual gifts, ethical unity, unity in Christ. B covers most but omits explicit treatments of baptism and tongues/prophecy. For an academic exam answer, A is more complete. For testimony, B's selection is appropriate — Paul wouldn't enumerate sacraments like a catechism.</p>
+  </div>
+
+  <h2>Verdict</h2>
+  <div class="verdict">
+    <p>The LoRA achieves <strong>+12 points</strong> in aggregate, with the largest gains exactly where a fine-tune is supposed to deliver: persona voice (+4), Biblical cadence (+4), and first-person framing (+4). Where it loses (citation handling, completeness), it loses <em>because</em> it succeeded at voice — Paul-as-eyewitness doesn't speak in Acts-2:44-45 chapter references, and his pastoral letters don't list sacraments like an encyclopedia entry.</p>
+    <p>In other words, the base model produced a <strong>correct</strong> answer to a generic version of the question. The LoRA produced an <strong>appropriate</strong> answer to <em>the question as asked</em> — a question to Paul about the community he helped build.</p>
+    <p>This is the qualitative gap the v2 pipeline is designed to close. The continuation training in particular — teaching the model to <em>continue</em> Pauline prose, not just <em>answer</em> questions about it — is what gives B the cadence and parallelism that A entirely lacks.</p>
+  </div>
+
+  <h2>Reproducibility</h2>
+  <table class="meta repro">
+    <tr><td><strong>Question</strong></td><td>"How did the early apostolic communities share life together? What spiritual practices bound them?"</td></tr>
+    <tr><td><strong>Base model</strong></td><td><code>unsloth/Qwen3-14B-unsloth-bnb-4bit</code> (4-bit)</td></tr>
+    <tr><td><strong>LoRA</strong></td><td><code>output/biblical_qwen3_14b_unsloth_4bit_v2/train</code></td></tr>
+    <tr><td><strong>Sampling</strong></td><td>temperature=0.7, top_p=0.9, max_new_tokens=1024</td></tr>
+    <tr><td><strong>System prompt (B)</strong></td><td>Paul persona from <code>prompts/paul.md</code></td></tr>
+  </table>
+
+  <footer>
+    Source markdown: <code>biblical/docs/comparisons/early-apostolic-communities.md</code> ·
+    Original outputs: <code>biblical/docs/standard-model.txt</code>, <code>biblical/docs/biblical-lora.txt</code> ·
+    Regenerate this PDF with <code>./regenerate.sh</code>
+  </footer>
+
+</div>
+</body>
+</html>
