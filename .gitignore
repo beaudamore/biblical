@@ -1,0 +1,15 @@
+# Generated outputs — training data, LoRA adapters, checkpoints
+output/
+
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+unsloth_compiled_cache/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
