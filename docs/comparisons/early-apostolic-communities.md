@@ -7,7 +7,7 @@
 **Models**
 
 | | Model | System prompt |
-|---|---|---|
+| --- | --- | --- |
 | **A — Base** | `Qwen3-14B` (no LoRA) | default assistant |
 | **B — LoRA** | `Qwen3-14B + biblical-persona-v2` | Paul (apostle) persona |
 
@@ -78,7 +78,7 @@ So we walked together — fellowship unbroken, hope unshaken, love unmeasured �
 A separate evaluator was given both responses (anonymized as "A" and "B") plus the original prompt and asked to score each against six dimensions on a 1–5 scale. Per-dimension justification below.
 
 | Dimension | A (Base) | B (LoRA) | Margin |
-|---|:---:|:---:|:---:|
+| --- | :---: | :---: | :---: |
 | **Persona voice fidelity** | 1 | 5 | +4 |
 | **Cadence / Biblical register** | 1 | 5 | +4 |
 | **Specificity & concrete imagery** | 2 | 4 | +2 |
@@ -125,8 +125,8 @@ This is the qualitative gap the v2 pipeline (Q&A + raw-text continuation augment
 
 ## Reproducibility
 
-| | |
-|---|---|
+| Item | Value |
+| --- | --- |
 | **Question** | "How did the early apostolic communities share life together? What spiritual practices bound them?" |
 | **Base model** | `unsloth/Qwen3-14B-unsloth-bnb-4bit` (4-bit) |
 | **LoRA** | `output/biblical_qwen3_14b_unsloth_4bit_v2/train` |

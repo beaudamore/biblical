@@ -61,7 +61,7 @@ Three independent samples are drawn (different `random` state per call) — one 
 
 Per-persona allocation logging is printed for the voice-drift sample as a sanity check:
 
-```
+```text
 Per-persona allocation (voice_drift sample):
   amos                       46
   david                      80 (capped)
@@ -204,7 +204,7 @@ After generation, validates that:
 
 Final summary printed:
 
-```
+```text
 DPO Pairs by source × persona:
                 voice_drift  scripture_fab  shallow_platitude  total
 amos                 46            46                 46          138

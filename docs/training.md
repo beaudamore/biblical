@@ -9,9 +9,9 @@ Notebook: [`notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb`](
 ## 1. Stack
 
 | Component | Choice | Why |
-|---|---|---|
+| --- | --- | --- |
 | Base model | `unsloth/Qwen3-14B-unsloth-bnb-4bit` | 14B is the sweet spot for 26-persona separation on a single DGX Spark. Pre-quantized 4-bit avoids re-quantization overhead at load. |
-| Adapter format | LoRA via PEFT | Adapters are ~100 MB — easy to ship, easy to merge, easy to A/B against a clean base. |
+| Adapter format | LoRA via PEFT | Adapter is ~490 MB at fp32 (Unsloth's default save format) — can be re-saved at bf16 for ~245 MB if shipping size matters. Easy to merge, easy to A/B against a clean base. |
 | LoRA library | [Unsloth](https://github.com/unslothai/unsloth) `FastLanguageModel` | 2x faster training and ~50% lower VRAM than vanilla HF + PEFT. Custom kernels for QLoRA. |
 | Trainer | TRL `SFTTrainer` + `SFTConfig` | Standard, works with any HF model, integrates cleanly with Unsloth's patches. |
 | Optimizer | `adamw_8bit` (bitsandbytes) | Halves optimizer-state memory vs fp16 AdamW with no measurable loss-curve difference at this scale. |
@@ -45,7 +45,7 @@ SEED                = 3407
 ### Why these values
 
 | Choice | Reasoning |
-|---|---|
+| --- | --- |
 | `r=32, alpha=32` | 1:1 alpha/r ratio (the modern default — better generalization than the older `alpha = 2r` heuristic). r=32 is enough capacity for 26-voice separation without overfitting on ~10k conversations. |
 | All 7 projections targeted | Covers full attention (`q,k,v,o`) **and** MLP (`gate,up,down`). MLP coverage matters for stylistic cadence — voice doesn't live only in attention. |
 | `dropout=0` | LoRA-on-top-of-frozen-base is already heavily regularized; explicit dropout slows convergence at this scale without measurable test-loss benefit. |
@@ -97,10 +97,10 @@ This is the kind of subtle interaction between Unsloth, TRL, and chat-template h
 
 ## 3. Hardware
 
-- **Training:** NVIDIA DGX Spark, 128 GB unified memory, single GH200 superchip.
+- **Training:** NVIDIA DGX Spark, **GB10** superchip (Grace + Blackwell), 128 GB unified memory (121.69 GB usable), single GPU.
 - **Inference / deployment target:** RTX A5000 24 GB via vLLM.
 
-The A5000 24 GB target is the binding constraint. At 4-bit, Qwen3-14B fits in ~8 GB; the LoRA adapter adds ~100 MB; remaining VRAM goes to KV cache for 4096-token context. This works comfortably on a single A5000 — the LoRA architecture choice (no full-weight DPO) is what keeps deployment cheap.
+The A5000 24 GB target is the binding constraint. At 4-bit, Qwen3-14B fits in ~8 GB; the LoRA adapter merges in ~245 MB at bf16 (or 490 MB if loaded as fp32 from disk); remaining VRAM goes to KV cache for the 4096-token context window. Comfortable on a single A5000 — the LoRA architecture choice (no full-weight DPO) is what keeps deployment cheap.
 
 ---
 
@@ -140,14 +140,16 @@ The cell also verifies `torch.cuda.is_available()` before doing any package work
 
 ## 5. Outputs
 
-```
-data/output/biblical_qwen3_14b_unsloth_4bit_v2/
-├── train/                      # SFTTrainer checkpoint dir
-│   ├── adapter_config.json
-│   ├── adapter_model.safetensors  (~100 MB)
-│   ├── training_args.bin
-│   └── tokenizer/                  # full tokenizer for vLLM-friendly deploys
-└── persona_prompts.json        # the 26 system prompts dumped at end of training
+```text
+output/biblical_qwen3_14b_unsloth_4bit_v2/
+└── lora_adapters/                       # final shippable artifact
+    ├── adapter_config.json              # PEFT config (r, alpha, targets)
+    ├── adapter_model.safetensors        # 490 MB (fp32 weights)
+    ├── chat_template.jinja              # Qwen3 ChatML template
+    ├── tokenizer.json                   # 10.9 MB
+    ├── tokenizer_config.json
+    ├── persona_system_prompts.json      # 26 system prompts (runtime contract)
+    └── README.md                        # PEFT-generated card
 ```
 
 `persona_prompts.json` is written by section 9 of the notebook — the persona system prompts that the LoRA was trained against, exported as a runtime contract for inference servers. Without this, every consumer would need to hand-copy persona prompts from the notebook source.
@@ -211,7 +213,7 @@ The DPO LoRA can be merged with the SFT LoRA before deploy, or stacked at runtim
 ## 9. Sister training notebooks
 
 | Notebook | Target |
-|---|---|
+| --- | --- |
 | `augustine_qwen3_14b_instruct_unsloth_4bit.ipynb` | Augustine-only LoRA, same hyperparameters |
 | `liguori_qwen3_14b_instruct_unsloth_4bit.ipynb`   | Liguori-only LoRA, same hyperparameters |
 | `biblical_qwen3_5_27b_instruct_unsloth_4bit.ipynb` | 27B variant (Qwen3-30B-A3B, requires bigger hardware) |

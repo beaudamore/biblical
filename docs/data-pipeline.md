@@ -10,13 +10,13 @@ How raw biblical/devotional source texts become clean, chunked, persona-labelled
 
 The corpus lives in two parallel directories:
 
-```
+```text
 data/source-raw/      ← untouched originals; never modified
 data/source-clean/    ← cleaned outputs; mirror the raw tree
 ```
 
 | Subdir | Origin | Format | Cleaner |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `Bishop of Hippo Saint Augustine/` | Project Gutenberg | `.txt` | `clean_augustine_gutenberg` (with per-file front-matter anchors) |
 | `extracted_texts/augconf/` | sacred-texts.com — Augustine *Confessions* | `.txt` | `clean_augconf` (find `BOOK <numeral>` start, strip footer) |
 | `extracted_texts/fbe/` | sacred-texts.com — Forgotten Books of Eden | `.txt` | `clean_fbe` (recurring nav + publisher info per chapter) |
@@ -44,7 +44,7 @@ Single-file Python script (~590 lines, stdlib only). Run from anywhere — paths
 Front-matter anchors are **per-file**, because TOCs in some volumes contain phrases that would otherwise false-positive.
 
 | File | Start anchor |
-|---|---|
+| --- | --- |
 | *City of God, Volume II* | `BOOK FOURTEENTH` (checked **before** Vol I — substring trap) |
 | *City of God, Volume I* | `PREFACE, EXPLAINING HIS DESIGN` → fallback `AUGUSTINE CENSURES THE PAGANS` |
 | Donatist controversy | `THE SEVEN BOOKS OF AUGUSTINE` |
@@ -57,7 +57,7 @@ This per-file approach exists because Augustine's TOC entries (e.g. "BOOK FOURTE
 #### sacred-texts.com pages
 A repeating boilerplate appears at every chapter boundary:
 
-```
+```text
 Sacred Texts
 Christianity
 Bible / Apocrypha
@@ -174,7 +174,7 @@ The 20% rule is the same idea as the char-based chunker (don't pull boundaries t
 ### `split_seed_completion(chunk, seed_tokens=60)`
 Each chunk is then split into a **seed** (the first ~60 tokens) and a **completion** (the rest). The seed becomes the human turn prefixed with one of:
 
-```
+```text
 "Continue writing in this voice and style, carrying forward the themes and language:"
 "Continue this passage, maintaining the same tone, vocabulary, and cadence:"
 "Write what comes next, staying true to the voice and spirit of this text:"

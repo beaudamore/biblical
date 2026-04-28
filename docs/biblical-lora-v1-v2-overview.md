@@ -72,7 +72,7 @@ The Q&A data teaches persona-specific behavior: how to answer, how to stay in ch
 All v2 outputs are isolated from v1:
 
 | Component | v1 Path | v2 Path |
-|-----------|---------|---------|
+| ----------- | --------- | --------- |
 | Datagen output | `data/training-data/biblical_persona/` | `data/training-data/biblical_persona_v2/` |
 | Q&A JSONL | `biblical_personas_sharegpt.jsonl` | Same file, copied into v2 dir |
 | Continuation data | *(doesn't exist)* | `augmented/continuation/*.jsonl` |
@@ -97,7 +97,7 @@ When these are enabled, the target blend adjusts: roughly 40% Q&A, 30% continuat
 
 Here's the full flow from source text to deployed model:
 
-```
+```text
 26 KJV source texts (one per persona)
         │
         ▼
@@ -143,7 +143,7 @@ Here's the full flow from source text to deployed model:
 Each persona has a unique voice profile with KJV exemplars, voice descriptions, and opener diversity cues:
 
 | Persona | Source | Voice Character |
-|---------|--------|----------------|
+| --------- | -------- | ---------------- |
 | Amos | Book of Amos | Blunt shepherd, agricultural imagery, thundering judgment |
 | Daniel | Book of Daniel | Courtly, diplomatic, apocalyptic visions |
 | David | Psalms, 1-2 Samuel | Poetic, emotional, psalm cadence, raw vulnerability |
@@ -176,7 +176,7 @@ Each persona has a unique voice profile with KJV exemplars, voice descriptions, 
 ## Key Numbers
 
 | Metric | v1 | v2 |
-|--------|-----|-----|
+| -------- | ----- | ----- |
 | Q&A pairs | ~9,700 | ~9,700 (unchanged) |
 | Continuation entries | 0 | ~1,500+ |
 | Total training conversations | ~2,600 | ~4,300+ |

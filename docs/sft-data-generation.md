@@ -49,7 +49,7 @@ PERSONA_METADATA = {
 Three components, each pulling its own weight:
 
 | Component | What it gives the model |
-|---|---|
+| --- | --- |
 | **identity** | A first-person grounding (`"I am ..."` framed) — keeps answers anchored in actual biographical events from the text rather than abstract theology. |
 | **voice_notes** | Explicit prose-style guidance: *Blunt rural speech, agricultural imagery, thundering declarations.* This shapes the **register**, not just the topic. |
 | **kjv_exemplars** | Five direct KJV quotes attributed to the persona. These are the strongest cadence anchor the model gets — short enough that the LLM treats them as style cues rather than content to paraphrase. |
@@ -84,7 +84,7 @@ This is a cheap, deterministic guardrail that keeps the most obvious "Llama3-ism
 For every chunk, three different system prompts are rotated:
 
 | Round | Style |
-|---|---|
+| --- | --- |
 | **1. Factual / interpretive** | who/what/when/where about specific events; *why did you do that, what did it mean to you*. Anchored in passage details. |
 | **2. Application** | "Based on what you went through, how should I handle ...". Connects the persona's specific events to a parallel modern situation. |
 | **3. Reflective** | "What were you feeling when ... happened?", "Looking back on ..., what would you tell someone who doubts?". Aimed at first-person emotional disclosure. |
@@ -116,7 +116,7 @@ For each persona's `<persona>.jsonl`:
 
 Per-persona report:
 
-```
+```text
 Persona         Total  Template  Contam%  Status
 amos             750         3     0.4%   ✓ PASS
 peter            750        12     1.6%   ✓ PASS
@@ -127,7 +127,7 @@ GLOBAL         19500       180     0.9%
 
 Cross-persona report:
 
-```
+```text
 Top 10 most repeated opening 4-grams:
    38x across 24 personas: "I look back and"
    29x across 19 personas: "When I was a"
@@ -142,7 +142,7 @@ Per-persona opener uniqueness:
 Decision logic:
 
 | Global contamination | Decision |
-|---|---|
+| --- | --- |
 | >30% | `QUALITY_GATE_PASSED = False` — assembly is **blocked**. Operator must delete failing personas' `per_persona/*.jsonl` and re-run generation. |
 | 15–30% | `QUALITY_GATE_PASSED = True` with a `WARN` printout. |
 | <15% | `QUALITY_GATE_PASSED = True`, no warning. |

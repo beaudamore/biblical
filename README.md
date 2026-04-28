@@ -14,7 +14,7 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 ## Skills Demonstrated
 
 | Domain | Specifics |
-|---|---|
+| --- | --- |
 | **Fine-tuning / PEFT** | LoRA, QLoRA (4-bit NF4), `r=32 / α=32` across all 7 attn+MLP projections, TRL `SFTTrainer` + `DPOTrainer`, gradient accumulation, pre-packed sequences (handling the `packing=False` interaction with TRL) |
 | **Synthetic-data generation** | Persona-conditioned Q&A with KJV exemplar grounding; banned-opener retry loop; cross-persona 4-gram opener uniqueness gate; three rejection-strategy DPO with per-persona caps |
 | **Data engineering** | Per-source regex cleaner (Project Gutenberg / sacred-texts.com / ChristianFOSS / Liguori imprimaturs); sentence-aware char chunking; `tiktoken` token-aware chunking for continuation tasks; ShareGPT format |
@@ -26,25 +26,106 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 
 ## Headline Numbers
 
-| | |
-|---|---|
+| Item | Value |
+| --- | --- |
 | **Personas** | 26 (KJV-grounded) + Augustine + Liguori |
-| **SFT data — Q&A** | ~9,700 conversations, ShareGPT format |
-| **SFT data — continuation** | ~1,500+ raw-text completion tasks |
-| **SFT blend** | 60% Q&A / 40% continuation |
-| **DPO pairs** | ~3,600 across 3 rejection strategies |
-| **Source corpus** | KJV per-persona texts + Gutenberg + sacred-texts.com + ChristianFOSS |
-| **Generator model** | Qwen3-235B-A22B (OpenRouter) for Q&A; Qwen-2.5-7B for cheap rejected answers |
+| **SFT examples (post-blend, post-pack)** | 4,352 ShareGPT conversations → 1,535 packed 4096-tok chunks |
+| **SFT blend** | 60% Q&A / 40% raw-text continuation |
+| **DPO pairs** | ~3,600 across 3 engineered rejection strategies |
+| **Source corpus** | KJV per-persona texts + Project Gutenberg + sacred-texts.com + ChristianFOSS |
+| **Generator model (Q&A)** | Qwen3-235B-A22B-2507 (OpenRouter); Qwen-2.5-7B for cheap rejected answers in DPO |
 | **Base model** | `unsloth/Qwen3-14B-unsloth-bnb-4bit` |
-| **Adapter shape** | LoRA r=32, α=32, all 7 attn+MLP projections, 4-bit QLoRA |
-| **Training hardware** | NVIDIA DGX Spark, 128 GB unified memory |
-| **Inference target** | A5000 24 GB via vLLM |
+| **Adapter shape** | LoRA r=32 / α=32 across all 7 attn+MLP projections — 128 M trainable params (0.86% of 14.9 B total) |
+| **Training hardware** | NVIDIA DGX Spark (GB10 superchip, 128 GB unified) |
+| **Training cost** | ~2 h 39 min wall-clock; 192 steps; final loss **1.31** |
+| **Adapter size** | 490 MB (`adapter_model.safetensors`, fp32) |
+| **Inference target** | A5000 24 GB via vLLM with `--enable-lora` |
+
+---
+
+## Results
+
+### Training run (Qwen3-14B v2)
+
+| Metric | Value |
+| --- | --- |
+| Final training loss | **1.31** |
+| Wall-clock | 9,547 s = **2 h 39 min** on a single GB10 |
+| Total steps | 192 (1 epoch) over 1,535 packed 4096-tok chunks |
+| Effective batch size | 8 (per-device 2 × grad-accum 4) |
+| Trainable params | 128,450,560 / 14,896,757,760 (**0.86%**) |
+| Optimizer | `adamw_8bit` |
+| Precision | bf16 (Unsloth padding-free auto-enabled) |
+| Adapter size | 490 MB safetensors (fp32 weights; can shrink to ~245 MB bf16 if needed) |
+
+### Dataset composition (post-pack)
+
+```text
+Total examples: 4,352   |   26 personas   |   Turn distribution: {3-turn: 1,741  5-turn: 91  7-turn: 541  9-turn: 1,979}
+```
+
+Top → bottom by persona representation (the user is aware of imbalance — DPO uses a per-persona cap of 80/source to compensate):
+
+```text
+moses        785  ███████████████▌      |  apostle_john  71  █
+jeremiah     381  ███████▌              |  james         54  █
+paul         377  ███████▌              |  malachi       44  ▌
+david        350  ███████               |  joel          44  ▌
+ezekiel      341  ██████▌               |  zephaniah     37  ▌
+isaiah       332  ██████▌               |  habakkuk      32  ▌
+solomon      254  █████                 |  jonah         29  ▌
+job          244  ████▌                 |  nahum         27  ▌
+daniel       239  ████▌                 |  haggai        24
+peter        148  ██▌                   |  obadiah       19
+zechariah    145  ██▌                   |  jude          15
+hosea        107  ██                    |
+amos          92  █▌                    |
+joshua        88  █▌                    |
+micah         73  █                     |
+```
+
+### Voice samples (LoRA outputs, persona system prompt only — no question-priming)
+
+- **Daniel** — *"Four is the number that stays with me — not counted among kings' decrees nor written in astrologers' tablets..."*
+- **Job** — *"There was a time when I counted my children in their feasts, seven sons and three daughters beneath..."*
+- **David** — *"O LORD, how long shall the sons of Belial rise like smoke from a cursed altar, filling the courts of..."*
+- **Micah** — *"A shepherd does not leave the fold scattered just to prove his strength — he gathers the sheep not by..."*
+
+### Cold-reload sanity check
+
+The training notebook's final cell wipes the in-memory model, reloads the adapter from disk, and re-runs inference — catching the surprisingly common "training succeeded but the saved adapter is corrupted" failure mode in 4-bit + PEFT pipelines.
+
+```text
+✓ Cleared training model from memory
+  Loading adapter from: lora_adapters/
+ADAPTER RELOAD TEST (persona: daniel):
+  Q: I am struggling with forgiveness. What does Scripture teach about forgiving others?
+  A: In the third year of King Belshazzar's reign, I saw a vision by night:
+     a man with eyes like flames of fire stood beside the river Hiddekel...
+✓ Adapter loads cleanly from disk. Ready for deployment via vLLM.
+```
+
+### LLM-as-judge head-to-head (LoRA vs base Qwen3-14B)
+
+📄 **[Full PDF with rubric and per-dimension rationale →](docs/comparisons/early-apostolic-communities.pdf)**
+
+| Dimension | Base | LoRA | Δ |
+| --- | --- | --- | --- |
+| Persona voice fidelity | 1 | 5 | **+4** |
+| Cadence / Biblical register | 1 | 5 | **+4** |
+| First-person testimony | 1 | 5 | **+4** |
+| Specificity & concrete imagery | 2 | 4 | **+2** |
+| Citation handling | 4 | 3 | −1 |
+| Information completeness | 5 | 4 | −1 |
+| **Total** | **14** | **26** | **+12** |
+
+The two negative dimensions are intentional trade-offs: chapter-and-verse citation conventions and exhaustive sacrament enumeration are *anti-Pauline* behaviors. The LoRA correctly sheds them in favor of voice authenticity.
 
 ---
 
 ## Repo Layout
 
-```
+```text
 biblical/
 ├── README.md                       ← you are here
 ├── docs/
@@ -178,7 +259,7 @@ flowchart TD
 ## The 26 Voices
 
 | Persona | Source | Voice Character |
-|---------|--------|----------------|
+| --------- | -------- | ---------------- |
 | Amos | Book of Amos | Blunt shepherd; agricultural imagery; thundering judgment |
 | Daniel | Book of Daniel | Courtly, diplomatic, apocalyptic visions |
 | David | Psalms, 1-2 Samuel | Poetic, parallelism, raw vulnerability |
