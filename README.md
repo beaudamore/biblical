@@ -12,6 +12,41 @@ This is **not a research artifact**. It is a working multi-tenant deployment wit
 
 ---
 
+## How the LoRA reaches users — two-layer architecture
+
+This repo is **the model-layer half** of the production system. The runtime layer that orchestrates multi-persona conversations on top of these adapters is a separate component:
+
+```mermaid
+flowchart LR
+    U[User] --> OW["Open WebUI<br/>chat.crossandfaith.com<br/>(Google OAuth)"]
+    OW --> CoS["<b>Dynamic Circle of Speakers v2</b><br/>custom Open WebUI pipeline<br/>(separate repo, not yet public)"]
+    CoS --> V["vLLM<br/>--enable-lora"]
+    V --> L1["biblical LoRA<br/>(THIS REPO)"]
+    V --> L2["augustine LoRA<br/>(THIS REPO)"]
+    V --> L3["liguori LoRA<br/>(THIS REPO)"]
+    L1 -.-> CoS
+    L2 -.-> CoS
+    L3 -.-> CoS
+    CoS --> OW
+    OW --> U
+
+    classDef thisrepo fill:#f4d896,stroke:#8a6f3f,color:#000;
+    classDef external fill:#e0e8f0,stroke:#5a7a9a,color:#000;
+    class L1,L2,L3 thisrepo
+    class CoS,OW,V external
+```
+
+| Layer | What it is | Where it lives |
+| --- | --- | --- |
+| **Model layer** | Trained LoRA adapters + the data + training pipeline that produced them | **This repo** |
+| **Runtime layer** | Dynamic Circle of Speakers v2 — a custom Open WebUI pipeline that brings a curated group of distinct voices into a single conversation in real time | [Writeup at damore.ai →](https://www.damore.ai/blog/dynamic-circle-of-speakers-v2) (pipeline source not yet public) |
+| **Surface layer** | Open WebUI UI with model picker + side-by-side compare; Google OAuth | [chat.crossandfaith.com](https://chat.crossandfaith.com) |
+| **Inference layer** | vLLM with `--enable-lora` for hot-swap between adapters at request time | OSS dependency |
+
+More technical writeups at **[damore.ai/blog](https://www.damore.ai/blog)**.
+
+---
+
 ## What it is
 
 A two-stage **QLoRA** fine-tune of **Qwen3-14B** that teaches the model to speak in **26 distinct biblical voices** (plus separate adapters for **Augustine** and **Alphonsus de Liguori**). Built on **Unsloth** with 4-bit pre-quantization, trained on an NVIDIA **DGX Spark** (128 GB unified memory), deployed via **vLLM** on a single A5000.
