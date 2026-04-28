@@ -1,10 +1,26 @@
 # Biblical Persona LoRA — Multi-Voice Scripture Fine-Tuning
 
-A complete fine-tuning pipeline that teaches **Qwen3-14B** to speak in the distinct voices of **26 Biblical figures** — not a generic "King-James-sounding" chatbot, but 26 separable personas with their own cadence, vocabulary, imagery, and rhetorical posture.
+A two-stage **QLoRA** fine-tune of **Qwen3-14B** that teaches the model to speak in **26 distinct biblical voices** (plus separate adapters for **Augustine** and **Alphonsus de Liguori**). Built on **Unsloth** with 4-bit pre-quantization, trained on an NVIDIA **DGX Spark** (128 GB unified memory), deployed via **vLLM** on a single A5000.
 
-When you ask **Paul** a question, he builds long theological chains with autobiographical anchors (the Damascus road, his thorn, his shipwrecks). Ask **Amos** the same question and you get a blunt one-liner with a farming metaphor. Ask **David**, you get psalm-cadence parallelism and raw emotional vulnerability. The voice switches based on the system prompt; the model learns to switch with it.
+The pipeline pairs **persona-conditioned Q&A generation** (with a voice-differentiation quality gate that fails closed on >30% template contamination) with **raw-text continuation augmentation** to teach prose cadence, then layers a **DPO** dataset across **three engineered rejection strategies** — voice drift, scripture fabrication, and shallow platitude. Includes a regex-based per-source data-cleaning pipeline, deployment notes, and an **LLM-as-judge** evaluation showing the LoRA scoring **+12** over the base model on a 6-dimension voice-fidelity rubric.
 
-> Two separate, smaller pipelines for **Augustine** (10 books, sacred-texts.com Confessions + Gutenberg) and **Alphonsus de Liguori** (6 devotional works) ship alongside the 26-persona core, on the same data-cleaning + Q&A + Unsloth-LoRA stack.
+> 📄 **[See the side-by-side LoRA-vs-base comparison (PDF) →](docs/comparisons/early-apostolic-communities.pdf)**
+> The same prompt sent to base Qwen3-14B and to the LoRA. Scoring rubric and rationale per dimension.
+
+When you ask **Paul** a question, he builds long theological chains with autobiographical anchors (Damascus road, his thorn, his shipwrecks). Ask **Amos** the same question — you get a blunt one-liner with a farming metaphor. Ask **David** — psalm-cadence parallelism and raw emotional vulnerability. The voice switches based on the system prompt; the model learns to switch with it.
+
+---
+
+## Skills Demonstrated
+
+| Domain | Specifics |
+|---|---|
+| **Fine-tuning / PEFT** | LoRA, QLoRA (4-bit NF4), `r=32 / α=32` across all 7 attn+MLP projections, TRL `SFTTrainer` + `DPOTrainer`, gradient accumulation, pre-packed sequences (handling the `packing=False` interaction with TRL) |
+| **Synthetic-data generation** | Persona-conditioned Q&A with KJV exemplar grounding; banned-opener retry loop; cross-persona 4-gram opener uniqueness gate; three rejection-strategy DPO with per-persona caps |
+| **Data engineering** | Per-source regex cleaner (Project Gutenberg / sacred-texts.com / ChristianFOSS / Liguori imprimaturs); sentence-aware char chunking; `tiktoken` token-aware chunking for continuation tasks; ShareGPT format |
+| **Evaluation** | LLM-as-judge with 6-dimension rubric; voice-differentiation quality gate; cold-reload adapter sanity check; per-persona contamination metrics |
+| **Infra / Ops** | NGC PyTorch container debugging on aarch64 (`causal_conv1d` source-build with `CAUSAL_CONV1D_FORCE_BUILD=TRUE`); strict Unsloth import-order discipline; Tailscale-bridged DGX→laptop workflow; vLLM LoRA hot-attach |
+| **Tooling built** | OpenAI-compatible API generation (OpenRouter / local vLLM swap); `git-sub-sync.sh` (custom git-submodule lifecycle script); reproducible `regenerate.sh` for evaluation PDFs |
 
 ---
 
@@ -116,39 +132,45 @@ See [docs/training.md](docs/training.md) for full hyperparameters and the ration
 
 ## Pipeline at a Glance
 
-```
-data/source-raw/                                    notebooks/datagen/
-    │                                                       │
-    ▼                                                       ▼
-clean_source_data.py  ──────►  data/source-clean/  ──►  biblical_datagen_v2_sft.ipynb
-   • Gutenberg strip                                       • Chunk (sentence-aware)
-   • sacred-texts nav                                      • Generate Q&A (3 rounds)
-   • Liguori imprimaturs                                   • Quality gate (voice diff)
-   • ChristianFOSS metadata                                • Continuation augmentation
-   • Page markers                                          • Blend 60% Q&A / 40% cont
-                                                                │
-                                                                ▼
-                                                  biblical_personas_combined_sharegpt.jsonl
-                                                                │
-                                                                ▼
-                                                  biblical_datagen_v2_dpo.ipynb
-                                                       • Sample QA triples
-                                                       • Generate 3 rejection types
-                                                       • Per-persona caps
-                                                                │
-                                                                ▼
-                                                  biblical_personas_v2_dpo.jsonl
-                                                                │
-                                                                ▼
-                                          biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb
-                                                       • SFT (TRL SFTTrainer)
-                                                       • [optional DPO via TRL DPOTrainer]
-                                                                │
-                                                                ▼
-                                                       LoRA adapters (~100 MB)
-                                                                │
-                                                                ▼
-                                                  vLLM on A5000 24 GB
+```mermaid
+flowchart TD
+    R["data/source-raw/<br/>26 persona texts +<br/>Gutenberg / sacred-texts /<br/>ChristianFOSS / Liguori"] --> C["clean_source_data.py<br/>per-source regex cleaner"]
+    C --> S["data/source-clean/"]
+
+    S --> SFT["biblical_datagen_v2_sft.ipynb"]
+    SFT --> QA["Q&A generation<br/>3 rounds × 5 questions per chunk<br/>Qwen3-235B via OpenRouter"]
+    QA --> QG{"Voice-differentiation<br/>quality gate<br/>(>30% template = FAIL)"}
+    QG -- fail --> QA
+    QG -- pass --> MQA["per_persona/*.jsonl<br/>~9.7K Q&A"]
+
+    SFT --> CONT["Continuation augmentation<br/>tiktoken token-aware chunking<br/>no API calls"]
+    CONT --> MCONT["continuation/*.jsonl<br/>~1.5K examples"]
+
+    MQA --> BLEND["60 / 40 blend<br/>+ shuffle"]
+    MCONT --> BLEND
+    BLEND --> COMBINED["combined_sharegpt.jsonl"]
+
+    COMBINED --> DPO["biblical_datagen_v2_dpo.ipynb"]
+    DPO --> R1["voice_drift<br/>(strip persona prompt)"]
+    DPO --> R2["scripture_fabrication<br/>(force hallucinated verses)"]
+    DPO --> R3["shallow_platitude<br/>(generic self-help)"]
+    R1 --> DPOOUT["~3.6K DPO pairs<br/>biblical_personas_v2_dpo.jsonl"]
+    R2 --> DPOOUT
+    R3 --> DPOOUT
+
+    COMBINED --> TRAIN["biblical_qwen3_14b_v2.ipynb<br/>Unsloth + TRL SFTTrainer<br/>QLoRA r=32, α=32"]
+    DPOOUT -. optional DPO step .-> TRAIN
+    TRAIN --> ADAPTERS["LoRA adapters (~100 MB)"]
+    ADAPTERS --> DEPLOY["vLLM on A5000 (24 GB)"]
+
+    classDef src fill:#f4f1ea,stroke:#888;
+    classDef gate fill:#fdecc8,stroke:#a07a2a;
+    classDef out fill:#f4d896,stroke:#8a6f3f;
+    classDef deploy fill:#a8d8a8,stroke:#3a7a3a;
+    class R,S src
+    class QG gate
+    class ADAPTERS,DPOOUT,COMBINED out
+    class DEPLOY deploy
 ```
 
 ---
