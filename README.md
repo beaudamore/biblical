@@ -14,34 +14,49 @@ This is **not a research artifact**. It is a working multi-tenant deployment wit
 
 ## How the LoRA reaches users — two-layer architecture
 
-This repo is **the model-layer half** of the production system. The runtime layer that orchestrates multi-persona conversations on top of these adapters is a separate component:
+This repo is **the model-layer half** of the production system. The runtime layer that orchestrates multi-persona conversations on top of these adapters is a separate component (currently private).
+
+Each persona LoRA is registered as a tagged Open WebUI model (`biblical`, `stoic`, etc.). The **Dynamic Circle of Speakers v2** pipeline filters the model registry by tag, picks which speaker(s) should respond next via an **intelligent speaker-ordering model**, injects per-speaker introduction and user-profile-aware prefixes, and streams responses back through Open WebUI.
 
 ```mermaid
-flowchart LR
-    U[User] --> OW["Open WebUI<br/>chat.crossandfaith.com<br/>(Google OAuth)"]
-    OW --> CoS["<b>Dynamic Circle of Speakers v2</b><br/>custom Open WebUI pipeline<br/>(separate repo, not yet public)"]
-    CoS --> V["vLLM<br/>--enable-lora"]
-    V --> L1["biblical LoRA<br/>(THIS REPO)"]
-    V --> L2["augustine LoRA<br/>(THIS REPO)"]
-    V --> L3["liguori LoRA<br/>(THIS REPO)"]
-    L1 -.-> CoS
-    L2 -.-> CoS
-    L3 -.-> CoS
+flowchart TD
+    U[User<br/>signed in via Google] --> OW["Open WebUI<br/>chat.crossandfaith.com"]
+    OW --> CoS["<b>Dynamic Circle of Speakers v2</b><br/>tag-filtered multi-speaker pipeline<br/>(separate repo, not yet public)"]
+
+    CoS --> ORD["Intelligent Speaker Ordering<br/>(LLM picks who responds, in what order)"]
+    CoS --> INTRO["Dynamic introductions +<br/>user-profile-aware prefixes"]
+
+    ORD --> V["vLLM<br/>--enable-lora<br/>(adapter hotswap)"]
+    INTRO --> V
+
+    V --> L1["<b>biblical</b> LoRA<br/>26 voices · THIS REPO"]
+    V --> L2["<b>augustine</b> LoRA<br/>THIS REPO"]
+    V --> L3["<b>liguori</b> LoRA<br/>THIS REPO"]
+    V -. sister circles .- LX["stoic / hr / legal LoRAs<br/>(other circles, same framework)"]
+
+    L1 --> V
+    L2 --> V
+    L3 --> V
+    V --> CoS
     CoS --> OW
     OW --> U
 
     classDef thisrepo fill:#f4d896,stroke:#8a6f3f,color:#000;
     classDef external fill:#e0e8f0,stroke:#5a7a9a,color:#000;
+    classDef pipeline fill:#fdecc8,stroke:#a07a2a,color:#000;
     class L1,L2,L3 thisrepo
-    class CoS,OW,V external
+    class CoS,ORD,INTRO pipeline
+    class OW,V,LX external
 ```
 
 | Layer | What it is | Where it lives |
 | --- | --- | --- |
-| **Model layer** | Trained LoRA adapters + the data + training pipeline that produced them | **This repo** |
-| **Runtime layer** | Dynamic Circle of Speakers v2 — a custom Open WebUI pipeline that brings a curated group of distinct voices into a single conversation in real time | [Writeup at damore.ai →](https://www.damore.ai/blog/dynamic-circle-of-speakers-v2) (pipeline source not yet public) |
-| **Surface layer** | Open WebUI UI with model picker + side-by-side compare; Google OAuth | [chat.crossandfaith.com](https://chat.crossandfaith.com) |
-| **Inference layer** | vLLM with `--enable-lora` for hot-swap between adapters at request time | OSS dependency |
+| **Model layer** | Trained LoRA adapters + data + training pipeline that produced them | **This repo** |
+| **Runtime layer** | **Dynamic Circle of Speakers v2** — multi-speaker Open WebUI pipeline with tag-filtered speaker selection, intelligent-ordering model for turn-taking, dynamic per-speaker introductions, user-profile-aware response prefixes, and streaming vLLM passthrough. Same framework powers sister circles for `stoic`, `hr`, `legal` domains. | [Writeup at damore.ai →](https://www.damore.ai/blog/dynamic-circle-of-speakers-v2) — code not yet public |
+| **Surface layer** | Open WebUI UI: model picker, side-by-side compare, Google OAuth, per-speaker profile images served from `images.crossandfaith.com` | [chat.crossandfaith.com](https://chat.crossandfaith.com) |
+| **Inference layer** | vLLM with `--enable-lora` for hot-swap between adapters at request time; same base Qwen3-14B serves all biblical voices | OSS dependency |
+
+The framework is **persona-agnostic** — biblical/augustine/liguori LoRAs from this repo plug into the same pipeline that runs the stoic, HR, and legal circles. The model layer (this repo) and the runtime layer (Circle of Speakers) are intentionally decoupled so additional persona families can be added without touching the orchestrator.
 
 More technical writeups at **[damore.ai/blog](https://www.damore.ai/blog)**.
 
