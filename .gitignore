@@ -1,5 +1,7 @@
 # Generated outputs — training data, LoRA adapters, checkpoints
 output/
+data/source-raw/
+data/source-clean/
 data/training-data/
 
 # Python
