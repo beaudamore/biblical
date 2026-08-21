@@ -1,0 +1,71 @@
+version: '3.8'
+services:
+  vllm-qwen38-27b-fp8:
+    image: vllm/vllm-openai:v0.27.1
+    container_name: vllm-node-qwen38-27b-fp8
+    entrypoint: ["vllm", "serve"]
+    runtime: nvidia
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0
+      - FLA_USE_TMA=0
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu, compute, utility]
+
+    volumes:
+      - /home/spark/docker-data/vllm-models:/root/.cache/huggingface
+      - /home/spark/projects/training:/training
+      - /home/spark/docker-compose-files/logs/dgx-vllm-node-qwen38-27b-fp8:/logs
+
+    ports:
+      - "8004:8000"
+
+    shm_size: '4gb'
+
+    command: >
+      Qwen/Qwen3.8-27B-FP8
+      --served-model-name qwen3.8:27b-fp8
+      --gpu-memory-utilization 0.60
+      --max-model-len 65536
+      --max-num-seqs 4
+      --max-num-batched-tokens 65536
+      --enable-lora
+      --max-lora-rank 32
+      --max-loras 3
+      --lora-modules biblical_dpo=/training/biblical/output/biblical_qwen3_8_27b_unsloth_4bit_dpo/lora_adapters
+      --port 8000
+      --host 0.0.0.0
+      --dtype auto
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_coder
+      --reasoning-parser qwen3
+      --enable-chunked-prefill
+      --enable-prefix-caching
+      --kv-cache-dtype fp8
+      --trust-remote-code
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 240s
+
+    restart: unless-stopped
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "2"
+
+networks:
+  default:
+    name: vllm-qwen38-27b-fp8-network
