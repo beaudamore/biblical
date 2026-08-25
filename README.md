@@ -198,7 +198,8 @@ biblical/
 │   ├── sft-data-generation.md      Q&A generation + voice-quality gate + continuation
 │   ├── dpo-data-generation.md      Three rejection strategies for preference pairs
 │   ├── training.md                 Unsloth + QLoRA training config
-│   └── biblical-lora-v1-v2-overview.md   Why v2 was added (Q&A → Q&A + raw text)
+│   ├── biblical-lora-v1-v2-overview.md   Why v2 was added (Q&A → Q&A + raw text)
+│   └── augmentation-roadmap.md     Corpus audit + planned augmentations (2026-08)
 ├── prompts/                        Hand-written persona system prompts (Paul, Adam-and-Eve, etc.)
 ├── data/
 │   ├── source-raw/                 Untouched originals (Gutenberg, sacred-texts, etc.)
@@ -375,3 +376,5 @@ The result is a model that **switches voices reliably** based on the system prom
 Pipeline is **functional end-to-end**: cleaning → datagen → SFT → DPO → adapter export → vLLM deploy.
 
 For roadmap and v1→v2 design notes, see [docs/biblical-lora-v1-v2-overview.md](docs/biblical-lora-v1-v2-overview.md).
+
+For the current corpus audit and planned augmentations — under-mined source texts, scripture grounding as a third `data_type`, candidate new personas, and per-persona adapters — see [docs/augmentation-roadmap.md](docs/augmentation-roadmap.md).
