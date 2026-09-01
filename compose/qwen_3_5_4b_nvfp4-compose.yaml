@@ -1,0 +1,73 @@
+version: '3.8'
+services:
+  vllm-qwen3.5-4b:
+    image: vllm/vllm-openai:v0.24.0
+    container_name: vllm-node-qwen3.5-4b
+    entrypoint: ["vllm", "serve"]
+    runtime: nvidia
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['0']
+              capabilities: [gpu, compute, utility]
+
+    volumes:
+      - /home/spark/docker-data/vllm-models:/root/.cache/huggingface
+      - /home/spark/projects/training:/training
+      - /home/spark/docker-compose-files/logs/dgx-vllm-node-qwen3.5-4b:/logs
+
+    ports:
+      - "8004:8000"
+
+    shm_size: '4gb'
+
+    command: >
+      unsloth/Qwen3.5-4B
+      --served-model-name qwen3.5:4b
+      --gpu-memory-utilization 0.25
+      --max-model-len 65536
+      --max-num-seqs 2
+      --max-num-batched-tokens 65536
+      --max-lora-rank 32
+      --max-loras 1
+      --enable-lora
+      --lora-modules biblical_sft=/training/biblical/output/biblical_qwen3_5_4b_unsloth_4bit/lora_adapters
+      --port 8000
+      --host 0.0.0.0
+      --dtype auto
+      --kv-cache-dtype fp8
+      --kv-cache-memory-bytes 5G
+      --enable-chunked-prefill
+      --enable-prefix-caching
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_xml
+      --reasoning-parser qwen3
+      --trust-remote-code
+      --speculative-config '{"method":"mtp","num_speculative_tokens":3}'
+      --load-format fastsafetensors
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 240s
+
+    restart: unless-stopped
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "2"
+
+networks:
+  default:
+    name: vllm-qwen3.5-4b-network
