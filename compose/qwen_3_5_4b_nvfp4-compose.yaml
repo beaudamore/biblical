@@ -52,7 +52,8 @@ services:
       --trust-remote-code
       --speculative-config '{"method":"mtp","num_speculative_tokens":3}'
       --load-format fastsafetensors
-
+      --limit-mm-per-prompt '{"image": 4, "video": 1}'
+      
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
