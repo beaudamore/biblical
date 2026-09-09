@@ -19,7 +19,7 @@ services:
               capabilities: [gpu, compute, utility]
 
     volumes:
-      - /home/spark/docker-data/vllm-models:/root/.cache/huggingface
+      - /home/spark/.cache/huggingface:/root/.cache/huggingface
       - /home/spark/projects/training:/training
       - /home/spark/docker-compose-files/logs/dgx-vllm-node-qwen36-27b:/logs
 
