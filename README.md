@@ -6,7 +6,9 @@
 
 > **The LoRA is deployed and publicly available at [chat.crossandfaith.com](https://chat.crossandfaith.com)** (Google sign-in) — landing page at **[crossandfaith.com](https://www.crossandfaith.com)**.
 
-This is **not a research artifact**. It is a working multi-tenant deployment with real Google OAuth sign-up, production sampling, and weeks of real user conversations. The trained LoRA is hot-attached to **vLLM** behind **Open WebUI**, so users can pick the `biblical` model directly or use Open WebUI's compare-models feature to A/B against base `Qwen3-14b` (or any other model in the workspace) on the same prompt.
+This is **not a research artifact**. It is a working multi-tenant deployment with real Google OAuth sign-up, production sampling, and months of real user conversations. The trained LoRA is hot-attached to **vLLM** behind **Open WebUI**, so users can pick the `biblical` model directly or use Open WebUI's compare-models feature to A/B against the bare base model on the same prompt.
+
+The adapter in production today is `biblical_dpo`, trained on **Qwen3.8-27B** and served over an NVFP4 quantization of the same base on an NVIDIA DGX Spark. The pipeline has been retrained on seven base models since the first Qwen3-14B release; see [Base models and shipped adapters](#base-models-and-shipped-adapters).
 
 > Side-by-side example from the production UI on the same prompt this README documents — the `biblical` LoRA gives Pauline first-person testimony ("*I have seen the Lord, and by His grace I bear witness...*") while base `Qwen3-14b` gives an encyclopedia-style answer ("*The early apostolic communities, particularly those described in the New Testament...*"). Full text in [`docs/comparisons/early-apostolic-communities.md`](docs/comparisons/early-apostolic-communities.md).
 
@@ -14,14 +16,14 @@ This is **not a research artifact**. It is a working multi-tenant deployment wit
 
 ## How the LoRA reaches users — two-layer architecture
 
-This repo is **the model-layer half** of the production system. The runtime layer that orchestrates multi-persona conversations on top of these adapters is a separate component (currently private).
+This repo is **the model-layer half** of the production system. The runtime layer that orchestrates multi-persona conversations on top of these adapters is the open-source [Circle of Speakers pipeline](https://github.com/beaudamore/circle-of-speakers-pipeline).
 
 Each persona LoRA is registered as a tagged Open WebUI model (`biblical`, `stoic`, etc.). The **Dynamic Circle of Speakers v2** pipeline filters the model registry by tag, picks which speaker(s) should respond next via an **intelligent speaker-ordering model**, injects per-speaker introduction and user-profile-aware prefixes, and streams responses back through Open WebUI.
 
 ```mermaid
 flowchart TD
     U[User<br/>signed in via Google] --> OW["Open WebUI<br/>chat.crossandfaith.com"]
-    OW --> CoS["<b>Dynamic Circle of Speakers v2</b><br/>tag-filtered multi-speaker pipeline<br/>(separate repo, not yet public)"]
+    OW --> CoS["<b>Dynamic Circle of Speakers v2</b><br/>tag-filtered multi-speaker pipeline<br/>(circle-of-speakers-pipeline repo)"]
 
     CoS --> ORD["Intelligent Speaker Ordering<br/>(LLM picks who responds, in what order)"]
     CoS --> INTRO["Dynamic introductions +<br/>user-profile-aware prefixes"]
@@ -30,13 +32,11 @@ flowchart TD
     INTRO --> V
 
     V --> L1["<b>biblical</b> LoRA<br/>26 voices · THIS REPO"]
-    V --> L2["<b>augustine</b> LoRA<br/>THIS REPO"]
-    V --> L3["<b>liguori</b> LoRA<br/>THIS REPO"]
+    V --> L2["<b>augustine</b> / <b>liguori</b><br/>pipelines · THIS REPO"]
     V -. sister circles .- LX["stoic / hr / legal LoRAs<br/>(other circles, same framework)"]
 
     L1 --> V
     L2 --> V
-    L3 --> V
     V --> CoS
     CoS --> OW
     OW --> U
@@ -44,7 +44,7 @@ flowchart TD
     classDef thisrepo fill:#f4d896,stroke:#8a6f3f,color:#000;
     classDef external fill:#e0e8f0,stroke:#5a7a9a,color:#000;
     classDef pipeline fill:#fdecc8,stroke:#a07a2a,color:#000;
-    class L1,L2,L3 thisrepo
+    class L1,L2 thisrepo
     class CoS,ORD,INTRO pipeline
     class OW,V,LX external
 ```
@@ -52,11 +52,11 @@ flowchart TD
 | Layer | What it is | Where it lives |
 | --- | --- | --- |
 | **Model layer** | Trained LoRA adapters + data + training pipeline that produced them | **This repo** |
-| **Runtime layer** | **Dynamic Circle of Speakers v2** — multi-speaker Open WebUI pipeline with tag-filtered speaker selection, intelligent-ordering model for turn-taking, dynamic per-speaker introductions, user-profile-aware response prefixes, and streaming vLLM passthrough. Same framework powers sister circles for `stoic`, `hr`, `legal` domains. | [Writeup at damore.ai →](https://www.damore.ai/blog/dynamic-circle-of-speakers-v2) — code not yet public |
+| **Runtime layer** | **Dynamic Circle of Speakers v2** — multi-speaker Open WebUI pipeline with tag-filtered speaker selection, intelligent-ordering model for turn-taking, dynamic per-speaker introductions, user-profile-aware response prefixes, and streaming vLLM passthrough. Same framework powers sister circles for `stoic`, `hr`, `legal` domains. | [circle-of-speakers-pipeline](https://github.com/beaudamore/circle-of-speakers-pipeline) · [writeup at damore.ai](https://www.damore.ai/blog/dynamic-circle-of-speakers-v2) |
 | **Surface layer** | Open WebUI UI: model picker, side-by-side compare, Google OAuth, per-speaker profile images served from `images.crossandfaith.com` | [chat.crossandfaith.com](https://chat.crossandfaith.com) |
-| **Inference layer** | vLLM with `--enable-lora` for hot-swap between adapters at request time; same base Qwen3-14B serves all biblical voices | OSS dependency |
+| **Inference layer** | vLLM with `--enable-lora` for hot-swap between adapters at request time. Today: Qwen3.8-27B NVFP4 on the DGX Spark serving `biblical_dpo` alongside the safety-classifier adapters. Reference compose files per base model in [`compose/`](compose/). | OSS dependency |
 
-The framework is **persona-agnostic** — biblical/augustine/liguori LoRAs from this repo plug into the same pipeline that runs the stoic, HR, and legal circles. The model layer (this repo) and the runtime layer (Circle of Speakers) are intentionally decoupled so additional persona families can be added without touching the orchestrator.
+The framework is **persona-agnostic** — the biblical adapters from this repo plug into the same pipeline that runs the stoic, HR, and legal circles. The model layer (this repo) and the runtime layer (Circle of Speakers) are intentionally decoupled so additional persona families can be added without touching the orchestrator. A dedicated cast-selection LoRA to replace the ordering model's prompt-only routing is designed in the orchestration-selector project.
 
 More technical writeups at **[damore.ai/blog](https://www.damore.ai/blog)**.
 
@@ -64,7 +64,7 @@ More technical writeups at **[damore.ai/blog](https://www.damore.ai/blog)**.
 
 ## What it is
 
-A two-stage **QLoRA** fine-tune of **Qwen3-14B** that teaches the model to speak in **26 distinct biblical voices** (plus separate adapters for **Augustine** and **Alphonsus de Liguori**). Built on **Unsloth** with 4-bit pre-quantization, trained on an NVIDIA **DGX Spark** (128 GB unified memory), deployed via **vLLM** on a single A5000.
+A two-stage **QLoRA** fine-tune (SFT, then DPO continuing the same adapter) that teaches a base model to speak in **26 distinct biblical voices**, with separate pipelines for **Augustine** and **Alphonsus de Liguori**. First built on **Qwen3-14B**, since retrained on Qwen3.5-27B, Qwen3.6-27B, **Qwen3.8-27B** (production), Qwen3.5-4B and Gemma 4 (12B, E2B, E4B) for mobile. Built on **Unsloth** with 4-bit quantization and trained on an NVIDIA **DGX Spark** (128 GB unified memory).
 
 The pipeline pairs **persona-conditioned Q&A generation** (with a voice-differentiation quality gate that fails closed on >30% template contamination) with **raw-text continuation augmentation** to teach prose cadence, then layers a **DPO** dataset across **three engineered rejection strategies** — voice drift, scripture fabrication, and shallow platitude. Includes a regex-based per-source data-cleaning pipeline, deployment notes, and an **LLM-as-judge** evaluation showing the LoRA scoring **+12** over the base model on a 6-dimension voice-fidelity rubric.
 
@@ -79,13 +79,14 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 
 | Domain | Specifics |
 | --- | --- |
-| **Fine-tuning / PEFT** | LoRA, QLoRA (4-bit NF4), `r=32 / α=32` across all 7 attn+MLP projections, TRL `SFTTrainer` + `DPOTrainer`, gradient accumulation, pre-packed sequences (handling the `packing=False` interaction with TRL) |
+| **Fine-tuning / PEFT** | LoRA, QLoRA (4-bit NF4), `r=32 / α=32` across all 7 attn+MLP projections, TRL `SFTTrainer` + `DPOTrainer` continuing one adapter, gradient accumulation, pre-packed sequences (handling the `packing=False` interaction with TRL); the same recipe carried across Qwen3, Qwen3.5/3.6/3.8 and Gemma 4 bases |
+| **Multimodal base handling** | Qwen3.5+ and Gemma 4 ship vision/audio towers and MTP heads. The adapters are scoped to the language model with `finetune_vision_layers=False` and an assertion that nothing else was adapted; every saved adapter is audited from its safetensors keys before serving |
 | **Synthetic-data generation** | Persona-conditioned Q&A with KJV exemplar grounding; banned-opener retry loop; cross-persona 4-gram opener uniqueness gate; three rejection-strategy DPO with per-persona caps |
-| **Data engineering** | Per-source regex cleaner (Project Gutenberg / sacred-texts.com / ChristianFOSS / Liguori imprimaturs); sentence-aware char chunking; `tiktoken` token-aware chunking for continuation tasks; ShareGPT format |
+| **Data engineering** | Per-source regex cleaner (Project Gutenberg / sacred-texts.com / ChristianFOSS / Liguori imprimaturs); sentence-aware chunking (pySBD); `tiktoken` token-aware chunking for continuation tasks; ShareGPT format |
 | **Evaluation** | LLM-as-judge with 6-dimension rubric; voice-differentiation quality gate; cold-reload adapter sanity check; per-persona contamination metrics |
-| **Infra / Ops** | NGC PyTorch container debugging on aarch64 (`causal_conv1d` source-build with `CAUSAL_CONV1D_FORCE_BUILD=TRUE`); strict Unsloth import-order discipline; Tailscale-bridged DGX→laptop workflow; vLLM LoRA hot-attach |
-| **Production deployment** | **Live multi-tenant chat** at [chat.crossandfaith.com](https://chat.crossandfaith.com); Open WebUI surface; Google OAuth sign-up; vLLM serving with `--enable-lora`; weeks of real user traffic |
-| **Tooling built** | OpenAI-compatible API generation (OpenRouter / local vLLM swap); `git-sub-sync.sh` (custom git-submodule lifecycle script); reproducible `regenerate.sh` for evaluation PDFs |
+| **Infra / Ops** | NGC PyTorch container debugging on aarch64 (`causal_conv1d` source-build with `CAUSAL_CONV1D_FORCE_BUILD=TRUE`); strict Unsloth import-order discipline; unified-memory discipline on GB10; vLLM LoRA hot-attach over NVFP4 and FP8 bases; GGUF export for on-device models |
+| **Production deployment** | **Live multi-tenant chat** at [chat.crossandfaith.com](https://chat.crossandfaith.com); Open WebUI surface; Google OAuth sign-up; vLLM serving with `--enable-lora`; months of real user traffic |
+| **Tooling built** | OpenAI-compatible API generation (OpenRouter / local vLLM swap); reproducible `regenerate.sh` for evaluation PDFs; per-base-model vLLM compose files; workspace-wide adapter audit script |
 
 ---
 
@@ -93,18 +94,40 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 
 | Item | Value |
 | --- | --- |
-| **Personas** | 26 (KJV-grounded) + Augustine + Liguori |
-| **SFT examples (post-blend, post-pack)** | 4,352 ShareGPT conversations → 1,535 packed 4096-tok chunks |
+| **Personas** | 26 (KJV-grounded) + Augustine + Liguori pipelines |
+| **SFT examples** | 4,352 ShareGPT conversations (2,612 Q&A + continuation) → 1,535 packed 4096-tok chunks on the 14B run |
 | **SFT blend** | 60% Q&A / 40% raw-text continuation |
-| **DPO pairs** | ~3,600 across 3 engineered rejection strategies |
+| **DPO pairs** | 3,564 across 3 engineered rejection strategies |
+| **Augustine / Liguori sets** | 2,726 / 844 ShareGPT conversations |
 | **Source corpus** | KJV per-persona texts + Project Gutenberg + sacred-texts.com + ChristianFOSS |
 | **Generator model (Q&A)** | Qwen3-235B-A22B-2507 (OpenRouter); Qwen-2.5-7B for cheap rejected answers in DPO |
-| **Base model** | `unsloth/Qwen3-14B-unsloth-bnb-4bit` |
-| **Adapter shape** | LoRA r=32 / α=32 across all 7 attn+MLP projections — 128 M trainable params (0.86% of 14.9 B total) |
+| **Production base model** | `unsloth/Qwen3.8-27B` (training) → `RadixArk/Qwen3.8-27B-NVFP4` (serving) |
+| **Adapter shape** | LoRA r=32 / α=32 across all 7 attn+MLP projections; 128 M trainable params (0.86%) on 14B, 608 MB fp32 on the 27B bases |
 | **Training hardware** | NVIDIA DGX Spark (GB10 superchip, 128 GB unified) |
-| **Training cost** | ~2 h 39 min wall-clock; 192 steps; final loss **1.31** |
-| **Adapter size** | 490 MB (`adapter_model.safetensors`, fp32) |
-| **Inference target** | A5000 24 GB via vLLM with `--enable-lora` |
+| **Documented run (14B v2)** | ~2 h 39 min wall-clock; 192 steps; final loss **1.31** |
+
+---
+
+## Base models and shipped adapters
+
+Every base below has a completed SFT adapter; all but the two smallest Gemma mobile builds
+also have a DPO adapter that continues it. Values are read from each run's `adapter_config.json`
+and `trainer_state.json`, not from the notebooks. Adapters live under `output/` (gitignored).
+
+| Base model | SFT date | SFT steps · loss (first → last) | DPO date · steps | r / α | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `unsloth/Qwen3-14B-unsloth-bnb-4bit` (v2) | 2026-06-13 | 192 · final 1.31 | 2026-06-13 · 446 | 32 / 32 | The documented run below; LLM-judge comparison |
+| `cyberenchanter/Qwen3.5-27B-bnb-4bit` | 2026-06-12 | 195 · 1.77 → 1.10 | 2026-06-13 · 446 | 16 / 16 | First 27B |
+| `unsloth/Qwen3.6-27B` | 2026-07-29 | 544 · 1.58 → 1.24 | 2026-07-29 · 446 | 32 / 32 | Served on the Qwen3.6 NVFP4 stack until the 3.8 move |
+| **`unsloth/Qwen3.8-27B`** | 2026-08-15 | 544 · 1.71 → 1.36 | 2026-08-15 · 446 | 32 / 32 | **Production** (`biblical_dpo`) |
+| `unsloth/Qwen3.5-4B` | 2026-08-29 | 544 · 2.14 → 1.69 | 2026-08-31 · 446 | 32 / 32 | Small/mobile; GGUF exported |
+| `unsloth/gemma-4-12b-it` | 2026-07-21 | 544 · 1.08 → 0.35 | 2026-07-21 · 446 | 32 / 32 | |
+| `unsloth/gemma-4-E4B-it-unsloth-bnb-4bit` | 2026-04-23 | 327 · 0.91 → 0.40 | — | 32 / 32 | Mobile; GGUF exported |
+| `unsloth/gemma-4-E2B-it-unsloth-bnb-4bit` (v2) | 2026-05-01 | 544 · 1.15 → 0.42 | — | 32 / 32 | Mobile; GGUF exported |
+
+Steps differ (192 vs 544) because the 14B run trained on pre-packed 4096-token chunks and the
+later runs on unpacked conversations at the same effective batch of 8. DPO losses are not
+listed; all DPO runs are one epoch over the 3,564 pairs at 446 steps.
 
 ---
 
@@ -122,6 +145,9 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 | Optimizer | `adamw_8bit` |
 | Precision | bf16 (Unsloth padding-free auto-enabled) |
 | Adapter size | 490 MB safetensors (fp32 weights; can shrink to ~245 MB bf16 if needed) |
+
+The Qwen3.8-27B production run uses the same recipe at `MAX_SEQ_LENGTH = 3072`, LR 2e-4,
+batch 2 × grad-accum 4, r=32 / α=32, with the vision tower frozen explicitly.
 
 ### Dataset composition (post-pack)
 
@@ -197,38 +223,59 @@ biblical/
 │   ├── data-pipeline.md            How raw texts are cleaned & chunked
 │   ├── sft-data-generation.md      Q&A generation + voice-quality gate + continuation
 │   ├── dpo-data-generation.md      Three rejection strategies for preference pairs
-│   ├── training.md                 Unsloth + QLoRA training config
+│   ├── training.md                 Unsloth + QLoRA training config (14B v2 run)
 │   ├── biblical-lora-v1-v2-overview.md   Why v2 was added (Q&A → Q&A + raw text)
-│   └── augmentation-roadmap.md     Corpus audit + planned augmentations (2026-08)
-├── prompts/                        Hand-written persona system prompts (Paul, Adam-and-Eve, etc.)
-├── data/
-│   ├── source-raw/                 Untouched originals (Gutenberg, sacred-texts, etc.)
+│   ├── augmentation-roadmap.md     Corpus audit + planned augmentations (2026-08)
+│   ├── comparisons/                LoRA-vs-base comparison (md, html, pdf) + regenerate.sh
+│   └── screenshots/
+├── compose/                        vLLM reference compose files per serving base:
+│                                   qwen_3_8_nvfp4 (production), qwen_3_8_fp8, qwen_3_6_nvfp4, qwen_3_5_4b_nvfp4
+├── prompts/                        Hand-written persona system prompts (Paul, Augustine, Adam-and-Eve, Simon the Zealot)
+├── data/                           (gitignored: regenerated locally)
+│   ├── source-raw/                 Untouched originals (Gutenberg, sacred-texts, 15 Bible translations, etc.)
 │   ├── source-clean/               Stripped: nav boilerplate, Imprimaturs, page markers
 │   ├── source-clean/full_biblical_data/   The 26 per-persona KJV concatenations
 │   ├── scripts/clean_source_data.py       Source-aware cleaner (regex, no NLTK needed)
 │   └── training-data/
 │       ├── biblical_persona_v2/    The 26-persona dataset
 │       │   ├── per_persona/<persona>.jsonl     Pre-blend Q&A (one file per voice)
-│       │   ├── biblical_personas_sharegpt.jsonl        Q&A only
+│       │   ├── biblical_personas_sharegpt.jsonl        Q&A only (2,612)
 │       │   ├── augmented/continuation/*.jsonl          Raw-text completion tasks
-│       │   ├── biblical_personas_combined_sharegpt.jsonl   Final SFT mix (Q&A + cont)
-│       │   └── biblical_personas_v2_dpo.jsonl          DPO preference pairs
-│       ├── augustine_persona/      Augustine pipeline output
-│       └── liguori_persona/        Liguori pipeline output
-└── notebooks/
-    ├── datagen/
-    │   ├── biblical_datagen_v2_sft.ipynb      Q&A + continuation pipeline (the core)
-    │   ├── biblical_datagen_v2_dpo.ipynb      Preference pairs from SFT data
-    │   ├── biblical_datagen_augustine.ipynb   Augustine-specific datagen
-    │   ├── biblical_datagen_liguori.ipynb     Liguori-specific datagen
-    │   └── biblical_datagen.ipynb             v1 datagen (kept for diffing)
-    ├── loras/
-    │   ├── biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb   Main training run
-    │   ├── augustine_qwen3_14b_instruct_unsloth_4bit.ipynb     Augustine LoRA
-    │   ├── liguori_qwen3_14b_instruct_unsloth_4bit.ipynb       Liguori LoRA
-    │   └── biblical_qwen3_5_27b_instruct_unsloth_4bit.ipynb    27B variant
-    └── old/                        Earlier base-model experiments (Llama, Mistral, Qwen2.5)
+│       │   ├── biblical_personas_combined_sharegpt.jsonl   Final SFT mix (4,352)
+│       │   ├── biblical_dpo_pairs_raw.jsonl            Pre-gate DPO pairs
+│       │   └── biblical_personas_v2_dpo.jsonl          DPO preference pairs (3,564)
+│       ├── augustine_persona/      augustine_sharegpt.jsonl (2,726) + per_source/
+│       └── liguori_persona/        liguori_sharegpt.jsonl (844) + per_source/
+├── notebooks/
+│   ├── datagen/
+│   │   ├── biblical_datagen_v2_sft.ipynb      Q&A + continuation pipeline (the core)
+│   │   ├── biblical_datagen_v2_dpo.ipynb      Preference pairs from SFT data
+│   │   ├── biblical_datagen_augustine.ipynb   Augustine-specific datagen
+│   │   ├── biblical_datagen_liguori.ipynb     Liguori-specific datagen
+│   │   ├── biblical_datagen_church_tradition.ipynb    Creeds, catechism, hymns (single voice)
+│   │   ├── biblical_datagen_church_fathers.ipynb      Church Fathers, voice-differentiated
+│   │   ├── biblical_datagen_deuterocanonical.ipynb    Deuterocanon & pseudepigrapha personas
+│   │   ├── biblical_datagen_adam_eve.ipynb            Books of Adam and Eve, narrator voice
+│   │   └── biblical_datagen.ipynb             v1 datagen (kept for diffing)
+│   ├── loras/
+│   │   ├── qwen_38_27b/biblical_qwen3_8_27b_{sft,dpo}_unsloth_4bit.ipynb   Production run (current reference)
+│   │   ├── qwen-3.5-4b/biblical_qwen3_5_4b_{sft,dpo}_unsloth_4bit.ipynb    Small/mobile run
+│   │   ├── biblical_qwen3_6_27b_{instruct,dpo}_unsloth_4bit.ipynb
+│   │   ├── biblical_qwen3_5_27b_{instruct,dpo}_unsloth_4bit.ipynb
+│   │   ├── biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb + _dpo_..._v2.ipynb   Documented 14B run
+│   │   ├── biblical_gemma4_12b_unsloth_4bit.ipynb + _dpo_...    Gemma 4 12B
+│   │   ├── biblical_gemma4_31b_{sft,dpo}_unsloth_4bit.ipynb      Written, not run
+│   │   ├── biblical_gemma4_e4b_instruct_unsloth_4bit_mobile.ipynb
+│   │   ├── augustine_/liguori_/church_tradition_qwen3_14b_instruct_unsloth_4bit.ipynb
+│   │   └── biblical_qwen3_14b_instruct_unsloth_4bit.ipynb       v1
+│   └── old/                        Earlier base-model experiments (Llama 3.1 8B/70B, Mistral, Qwen2.5)
+└── output/<model_name>/{train,lora_adapters,gguf}/   (gitignored)
 ```
+
+The four extra datagen notebooks (church tradition, Church Fathers, deuterocanonical,
+Adam and Eve) are written against the same pipeline; their generated sets are not on disk,
+so they have not fed a training run yet. Augustine and Liguori have generated data and a
+14B training notebook each but no adapter on disk.
 
 ---
 
@@ -237,11 +284,10 @@ biblical/
 ### 1. Set the API key for data generation
 
 ```sh
-cp notebooks/datagen/.env.example notebooks/datagen/.env  # if present
-echo "OPENROUTER_API_KEY=sk-or-..." > notebooks/datagen/.env
+export OPENROUTER_API_KEY=sk-or-...      # or put it in a .env file the notebook loads
 ```
 
-The datagen notebooks read `OPENROUTER_API_KEY` from the environment (see `.gitignore` — `.env` is excluded). You can also point them at any OpenAI-compatible endpoint by editing `API_BASE_URL` / `MODEL_NAME` in the first cell.
+The datagen notebooks read `OPENROUTER_API_KEY` from the environment (`.env` is gitignored). You can also point them at any OpenAI-compatible endpoint by editing `API_BASE_URL` / `MODEL_NAME` in the first cell.
 
 ### 2. Clean the source corpus (idempotent, safe to re-run)
 
@@ -265,15 +311,26 @@ For DPO data, run [notebooks/datagen/biblical_datagen_v2_dpo.ipynb](notebooks/da
 
 ### 4. Train
 
-Run [notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb](notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb). It:
+Notebooks run in JupyterLab inside the `unsloth-notebook` container (host port 8889). Check the GPU is free first (`docker ps`; a serving container usually holds it).
 
-1. Bootstraps the NGC PyTorch environment (handles a known broken `causal_conv1d` wheel).
-2. Loads `Qwen3-14B` 4-bit pre-quantized.
-3. Attaches LoRA adapters: r=32, α=32, all attention + MLP projections.
-4. Trains for 1 epoch via TRL `SFTTrainer` with pre-packed 4096-tok sequences.
-5. Saves adapters and runs a sanity-check inference + cold-reload test.
+The current reference pair is [notebooks/loras/qwen_38_27b/biblical_qwen3_8_27b_sft_unsloth_4bit.ipynb](notebooks/loras/qwen_38_27b/biblical_qwen3_8_27b_sft_unsloth_4bit.ipynb) followed by its `_dpo_` twin. The SFT notebook:
 
-See [docs/training.md](docs/training.md) for full hyperparameters and the rationale behind each choice.
+1. Loads `unsloth/Qwen3.8-27B` and quantizes it to NF4 on load.
+2. Attaches LoRA adapters scoped to the language model: r=32, α=32, all attention + MLP projections, vision tower frozen with an assertion.
+3. Trains for 1 epoch via TRL `SFTTrainer` with response-only loss masking.
+4. Saves the adapter, runs a sanity-check inference and a cold-reload test.
+
+The DPO notebook resumes that adapter and continues it with `DPOTrainer`, caching reference log-probs to disk so an interrupted run resumes. `MODEL_NAME_BASE` in the SFT notebook is the contract the DPO notebook resolves the adapter path from; change it in both places or not at all.
+
+The documented 14B run is [notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb](notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb); [docs/training.md](docs/training.md) has its full hyperparameters and the rationale behind each choice.
+
+### 5. Audit and serve
+
+```sh
+docker exec unsloth-notebook python /workspace/training/docs/audit_adapters.py biblical   # no vision/audio/MTP keys
+```
+
+Then point vLLM at the adapter with `--enable-lora --lora-modules biblical_dpo=/training/biblical/output/<model>/lora_adapters`; [`compose/qwen_3_8_nvfp4-compose.yaml`](compose/qwen_3_8_nvfp4-compose.yaml) is the production reference.
 
 ---
 
@@ -295,20 +352,21 @@ flowchart TD
 
     MQA --> BLEND["60 / 40 blend<br/>+ shuffle"]
     MCONT --> BLEND
-    BLEND --> COMBINED["combined_sharegpt.jsonl"]
+    BLEND --> COMBINED["combined_sharegpt.jsonl<br/>4,352 conversations"]
 
     COMBINED --> DPO["biblical_datagen_v2_dpo.ipynb"]
     DPO --> R1["voice_drift<br/>(strip persona prompt)"]
     DPO --> R2["scripture_fabrication<br/>(force hallucinated verses)"]
     DPO --> R3["shallow_platitude<br/>(generic self-help)"]
-    R1 --> DPOOUT["~3.6K DPO pairs<br/>biblical_personas_v2_dpo.jsonl"]
+    R1 --> DPOOUT["3,564 DPO pairs<br/>biblical_personas_v2_dpo.jsonl"]
     R2 --> DPOOUT
     R3 --> DPOOUT
 
-    COMBINED --> TRAIN["biblical_qwen3_14b_v2.ipynb<br/>Unsloth + TRL SFTTrainer<br/>QLoRA r=32, α=32"]
-    DPOOUT -. optional DPO step .-> TRAIN
-    TRAIN --> ADAPTERS["LoRA adapters (~100 MB)"]
-    ADAPTERS --> DEPLOY["vLLM on A5000 (24 GB)"]
+    COMBINED --> TRAIN["SFT notebook per base<br/>Unsloth + TRL SFTTrainer<br/>QLoRA r=32, α=32"]
+    DPOOUT --> DPOTRAIN["DPO notebook<br/>continues the SFT adapter"]
+    TRAIN --> DPOTRAIN
+    DPOTRAIN --> ADAPTERS["LoRA adapter<br/>490–608 MB fp32"]
+    ADAPTERS --> DEPLOY["vLLM --enable-lora<br/>DGX Spark, NVFP4 base"]
 
     classDef src fill:#f4f1ea,stroke:#888;
     classDef gate fill:#fdecc8,stroke:#a07a2a;
@@ -373,8 +431,16 @@ The result is a model that **switches voices reliably** based on the system prom
 
 ## Status
 
-Pipeline is **functional end-to-end**: cleaning → datagen → SFT → DPO → adapter export → vLLM deploy.
+Pipeline is **functional end-to-end** and in production: cleaning → datagen → SFT → DPO → adapter audit → vLLM deploy. The 26-voice dataset has been trained on eight base models; Qwen3.8-27B is what users talk to today.
 
 For roadmap and v1→v2 design notes, see [docs/biblical-lora-v1-v2-overview.md](docs/biblical-lora-v1-v2-overview.md).
 
 For the current corpus audit and planned augmentations — under-mined source texts, scripture grounding as a third `data_type`, candidate new personas, and per-persona adapters — see [docs/augmentation-roadmap.md](docs/augmentation-roadmap.md).
+
+## Related
+
+- [circle-of-speakers-pipeline](https://github.com/beaudamore/circle-of-speakers-pipeline) — the Open WebUI runtime layer; ships 38 biblical speaker prompts and the `biblical_circle.py` shim
+- [stoic](https://github.com/beaudamore/stoic) — three-voice sister project on the same pipeline
+- [shakespeare](https://github.com/beaudamore/shakespeare) — the single-voice teaching-sized version
+- [safety](https://github.com/beaudamore/safety) — the classifier adapters served from the same vLLM stack, guarding the same chat
+- [damore.ai/blog/dynamic-circle-of-speakers-v2](https://www.damore.ai/blog/dynamic-circle-of-speakers-v2) · [multi-persona LLM pipeline](https://www.damore.ai/blog/multi-persona-llm-pipeline)
