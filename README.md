@@ -219,6 +219,7 @@ The two negative dimensions are intentional trade-offs: chapter-and-verse citati
 ```text
 biblical/
 ├── README.md                       ← you are here
+├── .claude/CLAUDE.md               Project notes for Claude Code sessions (conventions, traps, open items)
 ├── docs/
 │   ├── data-pipeline.md            How raw texts are cleaned & chunked
 │   ├── sft-data-generation.md      Q&A generation + voice-quality gate + continuation
@@ -226,6 +227,7 @@ biblical/
 │   ├── training.md                 Unsloth + QLoRA training config (14B v2 run)
 │   ├── biblical-lora-v1-v2-overview.md   Why v2 was added (Q&A → Q&A + raw text)
 │   ├── augmentation-roadmap.md     Corpus audit + planned augmentations (2026-08)
+│   ├── gemma4-12b-port-notes.md    Work list for updating the Gemma 4 12B notebooks (2026-11)
 │   ├── comparisons/                LoRA-vs-base comparison (md, html, pdf) + regenerate.sh
 │   └── screenshots/
 ├── compose/                        vLLM reference compose files per serving base:
