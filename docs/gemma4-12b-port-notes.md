@@ -4,8 +4,8 @@ Written 2026-11-06 after a read-only review. Nothing in the two notebooks has be
 For a later session that will bring them up to date and produce a model for the game at
 `~/Source/unreal-sandbox`. Items marked "not verified" were not checked against a running system.
 
-- SFT: `notebooks/loras/biblical_gemma4_12b_unsloth_4bit.ipynb`
-- DPO: `notebooks/loras/biblical_gemma4_12b_dpo_unsloth_4bit.ipynb`
+- SFT: `notebooks/loras/archive/biblical_gemma4_12b_unsloth_4bit.ipynb`
+- DPO: `notebooks/loras/archive/biblical_gemma4_12b_dpo_unsloth_4bit.ipynb`
 
 ## Status
 
@@ -89,7 +89,7 @@ The reference-logprob cache fingerprint (cell 11) must change with the fix, or s
 The DPO notebook ends at the eval cell. The only GGUF cell is SFT cell 27 (Unsloth
 `save_pretrained_gguf`), which exports the SFT-only adapter and has never run on 12B.
 
-Port section 13 of `notebooks/loras/qwen-3.5-4b/biblical_qwen3_5_4b_dpo_unsloth_4bit.ipynb`
+Port section 13 of `notebooks/loras/archive/qwen-3.5-4b/biblical_qwen3_5_4b_dpo_unsloth_4bit.ipynb`
 (cell 27: CPU merge with PEFT, `convert_hf_to_gguf.py`, `llama-quantize`, `convert_lora_to_gguf.py`).
 Gemma changes:
 - End of turn is `<turn|>`. Check which EOS id the converter writes before forcing anything.

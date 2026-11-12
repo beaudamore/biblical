@@ -4,7 +4,11 @@ How preference pairs are built for **Direct Preference Optimization** training. 
 
 The point of three rejection types is **error-mode coverage**: a single rejection style produces a model that's good at avoiding *that one* kind of failure. Splitting the rejection budget across orthogonal failure modes hardens the model against multiple drift patterns simultaneously.
 
-Notebook: [`notebooks/datagen/biblical_datagen_v2_dpo.ipynb`](../notebooks/datagen/biblical_datagen_v2_dpo.ipynb)
+> **2026-11-11:** the notebook described on this page is now in `notebooks/datagen/archive/`. The current pair generator is [`biblical_datagen_v2_dpo-local-sft.ipynb`](../notebooks/datagen/biblical_datagen_v2_dpo-local-sft.ipynb), run after SFT training with the SFT adapter served locally; it is the template for new work. The original pairs (`biblical_personas_v2_dpo.jsonl`) are in the dataset's `archive/` folder. See [training-history.md](training-history.md) for why.
+
+Notebook: [`notebooks/datagen/archive/biblical_datagen_v2_dpo.ipynb`](../notebooks/datagen/archive/biblical_datagen_v2_dpo.ipynb)
+
+Local variant (2026-11-10): [`biblical_datagen_v2_dpo-local-sft.ipynb`](../notebooks/datagen/biblical_datagen_v2_dpo-local-sft.ipynb) sends every call to the local vLLM stack `vllm-qwen38-27b-nvfp4-kvdisk` (port 8005, thinking off, concurrency 16), so the rejected answers are written by the Qwen3.8 SFT adapter `biblical_sft` itself. A first 234-pair test with the prompts described below produced pairs that were still easy to tell apart (`biblical_personas_v2_dpo_local_sft.jsonl`). The notebook was then changed (recipe 2, not yet run): each rejected answer is generated in persona from the identity line of the trained prompt plus one strategy instruction; continuation conversations are skipped; and a judge step on the base model keeps only pairs whose rejected answer has the intended flaw. Output: `biblical_personas_v3_dpo_local_sft.jsonl`, with every verdict in `biblical_dpo_pairs_raw_v3_local_sft.jsonl`. The rest of this document describes the original OpenRouter notebook.
 
 ---
 

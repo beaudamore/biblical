@@ -28,6 +28,32 @@ data/source-clean/    ← cleaned outputs; mirror the raw tree
 
 Per-persona concatenations for the 26-voice training run live at `data/source-clean/full_biblical_data/<persona>.txt` — these are the inputs to the SFT datagen notebook.
 
+### Space-before-punctuation fix (2026-11-10)
+
+The upstream KJV files (`data/source-raw/bib/kjv/*.md`) carry a stray space before punctuation in many verses, for example `And God made the firmament , and divided the waters ... above the firmament : and it was so.` The cleaning script copies `bib/` as-is, so the 26 persona files inherited it: 14,898 occurrences, about one every 165 characters.
+
+Where it ended up:
+
+| Place | Affected | Why it matters |
+| --- | --- | --- |
+| `data/source-clean/full_biblical_data/*.txt` | all 26 files | Input to Q&A generation (as passages) and to continuation chunks (verbatim) |
+| `augmented/continuation/*.jsonl` | 99.8% of answers, about 10 per answer | The model is trained to **write** this text |
+| `biblical_personas_combined_sharegpt.jsonl` | the 1,741 continuation rows (40% of SFT) | Same |
+| Q&A answers | 0.1% (19 occurrences, left alone) | The generator model wrote clean prose from the flawed passages |
+
+What was changed on 2026-11-10, with one rule: delete a single space that sits between a word character and one of `, ; : . ! ? )`. In Python: `re.sub(r"(?<=\w) (?=[,;:.!?)])", "", text)`.
+
+- The 26 persona files in `data/source-clean/full_biblical_data/` (tracked in git, so the diff is the record).
+- The `human` and `gpt` turns of every continuation row, in `augmented/continuation/*.jsonl` and in `biblical_personas_combined_sharegpt.jsonl`. Row count (4,352), row order, the Q&A rows and all system prompts are unchanged; a check confirmed that nothing but spaces differs from the previous file.
+- The previous versions of those generated files are kept in `data/training-data/biblical_persona_v2/archive/pre-spacing-fix-2026-11-10/` (moved under `archive/` on 2026-11-11) (gitignored, like the rest of `training-data/`).
+
+What was **not** changed:
+
+- `data/source-raw/` and `data/source-clean/bib/` still have the stray spaces. Anything rebuilt from them, including a new persona file, needs the same rule applied. `clean_source_data.py` does not apply it.
+- `biblical_personas_v2_dpo.jsonl`: 403 of its 3,564 pairs are continuation tasks whose prompt and chosen answer still carry the stray spaces.
+- The other source sets (Augustine, Liguori, church fathers, deuterocanonical, Adam and Eve) were not checked.
+- **Every adapter trained before 2026-11-10 learned from the unfixed continuation rows**, including the production Qwen3.8-27B adapter and the Muse Glimmer adapters. Whether they reproduce the spacing in their output has not been tested. The fix takes effect at the next SFT run; the training notebooks' formatted-data caches are keyed on the data file's modification time, so they rebuild on their own.
+
 ---
 
 ## 2. Cleaning — `data/scripts/clean_source_data.py`

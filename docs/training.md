@@ -2,7 +2,7 @@
 
 Hyperparameters, environment notes, and the rationale behind each choice for the biblical persona LoRA on Qwen3-14B.
 
-Notebook: [`notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb`](../notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb)
+Notebook: [`notebooks/loras/archive/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb`](../notebooks/loras/archive/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb)
 
 ---
 

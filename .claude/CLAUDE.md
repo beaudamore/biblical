@@ -38,9 +38,12 @@ adapter teaches 26 personas; the system prompt selects the voice.
    run or suggest running it without saying so.
 2. `notebooks/datagen/biblical_datagen_v2_sft.ipynb` (OpenRouter, `qwen/qwen3-235b-a22b-2507`)
    -> `data/training-data/biblical_persona_v2/biblical_personas_combined_sharegpt.jsonl`
-   (4,352 conversations, 26 personas, ShareGPT `conversations` + `data_type`, 3 to 9 turns,
+   (4,349 conversations since the 2026-11-10 wrong-person removal, 4,352 before; 26 personas, ShareGPT `conversations` + `data_type`, 3 to 9 turns,
    system prompts 1,314 to 1,593 characters).
-3. `notebooks/datagen/biblical_datagen_v2_dpo.ipynb`
+3. `notebooks/datagen/biblical_datagen_v2_dpo-local-sft.ipynb` (since 2026-11-11; run AFTER SFT, with the SFT
+   adapter on local vLLM) -> `.../biblical_personas_v4_dpo_local_sft.jsonl` (1,673 pairs, sources
+   `voice_drift` and `shallow_platitude`). The original, now in `notebooks/datagen/archive/`, was
+   `biblical_datagen_v2_dpo.ipynb`
    -> `.../biblical_personas_v2_dpo.jsonl` (3,564 pairs; `chosen`/`rejected` are
    `[system, user, assistant]` role/content lists plus `source` and `persona`; three sources:
    `voice_drift`, `scripture_fabrication`, `shallow_platitude`).
@@ -55,13 +58,19 @@ adapter teaches 26 personas; the system prompt selects the voice.
   `SFT_MODEL_NAME_BASE` must equal it. Change both or neither.
 - Usual settings: r=32, alpha=32, all attention + MLP projections, lr 2e-4, 1 epoch, batch 2x4
   for SFT; lr 5e-6, beta 0.05 (0.1 on the 4B), batch 1x8 for DPO.
-- Reference pair (README): `notebooks/loras/qwen_38_27b/`.
-- Most complete pair (newest, 2026-09-01): `notebooks/loras/qwen-3.5-4b/`. It has what the
-  others lack: a `complete.json` sentinel the DPO notebook checks before starting, measured token
-  lengths, a cold-reload audit of the saved safetensors, and section 13 of the DPO notebook, a
-  GGUF export that works (CPU merge with PEFT, then llama.cpp's own `convert_hf_to_gguf.py`,
-  `llama-quantize` and `convert_lora_to_gguf.py`). Copy patterns from there, not from older
-  notebooks.
+- TEMPLATE for new work (2026-11-11): `notebooks/loras/qwen_38_27b/` (SFT + DPO) with
+  `notebooks/datagen/biblical_datagen_v2_sft.ipynb` and `biblical_datagen_v2_dpo-local-sft.ipynb`.
+  The DPO notebook is written for TRL 1.15: reference = frozen `ref` copy of the SFT adapter
+  (asserted), conversational dataset format, beta 0.25, 100-step cap, held-out check every 25
+  steps with a stop rule, Save cell picks the last good checkpoint. Copy from there.
+- Everything else was moved on 2026-11-11 to `notebooks/loras/archive/`,
+  `notebooks/datagen/archive/`, `output/archive/` and
+  `data/training-data/biblical_persona_v2/archive/`. Archived notebooks still point at the old
+  locations. Paths elsewhere in this file that name those notebooks or folders now need `archive/`.
+- Archived `notebooks/loras/archive/qwen-3.5-4b/` still has two things the template lacks: a
+  cold-reload audit of the saved safetensors, and section 13 of its DPO notebook, a GGUF export
+  that works (CPU merge with PEFT, then llama.cpp's own `convert_hf_to_gguf.py`,
+  `llama-quantize` and `convert_lora_to_gguf.py`). Its DPO cells are TRL 0.24.
 - That 4B notebook also records why `PYTORCH_CUDA_ALLOC_CONF=...max_split_size_mb:256` and
   `set_per_process_memory_fraction` must NOT be set on the Spark (reproducible OOM). Older
   notebooks, including Gemma 12B DPO, still set both.
@@ -83,6 +92,9 @@ adapter teaches 26 personas; the system prompt selects the voice.
   not on this Mac. Do not quote them from memory.
 - Every change that touches a notebook's behaviour, a file name or the layout updates
   `README.md` (results table, Repo Layout tree) and the matching `docs/*.md` in the same pass.
+- `docs/training-history.md` is the public running log (started 2026-11-10). When something is
+  tried, measured or overturned, add a dated entry in the format at the bottom of that file.
+  Never rewrite old entries; no private details (IPs, accounts, personal paths beyond the repo).
 
 ## The game consumer: `~/Source/unreal-sandbox`
 

@@ -8,7 +8,7 @@
 
 This is **not a research artifact**. It is a working multi-tenant deployment with real Google OAuth sign-up, production sampling, and months of real user conversations. The trained LoRA is hot-attached to **vLLM** behind **Open WebUI**, so users can pick the `biblical` model directly or use Open WebUI's compare-models feature to A/B against the bare base model on the same prompt.
 
-The adapter in production today is `biblical_dpo`, trained on **Qwen3.8-27B** and served over an NVFP4 quantization of the same base on an NVIDIA DGX Spark. The pipeline has been retrained on seven base models since the first Qwen3-14B release; see [Base models and shipped adapters](#base-models-and-shipped-adapters).
+The adapter in production today is `biblical_dpo`, trained on **Qwen3.8-27B** and served over an NVFP4 quantization of the same base on an NVIDIA DGX Spark. The pipeline has been retrained on eight base models since the first Qwen3-14B release; see [Base models and shipped adapters](#base-models-and-shipped-adapters).
 
 > Side-by-side example from the production UI on the same prompt this README documents — the `biblical` LoRA gives Pauline first-person testimony ("*I have seen the Lord, and by His grace I bear witness...*") while base `Qwen3-14b` gives an encyclopedia-style answer ("*The early apostolic communities, particularly those described in the New Testament...*"). Full text in [`docs/comparisons/early-apostolic-communities.md`](docs/comparisons/early-apostolic-communities.md).
 
@@ -96,7 +96,8 @@ When you ask **Paul** a question, he builds long theological chains with autobio
 | --- | --- |
 | **Personas** | 26 (KJV-grounded) + Augustine + Liguori pipelines |
 | **SFT examples** | 4,352 ShareGPT conversations (2,612 Q&A + continuation) → 1,535 packed 4096-tok chunks on the 14B run |
-| **SFT blend** | 60% Q&A / 40% raw-text continuation |
+| **SFT examples, current file** | 4,349 conversations since 2026-11-10: 155 questions addressed to the wrong figure (154 of them Moses asked about Abraham, Noah or Adam) were removed with their answers. Also on 2026-11-10, over-repeated answer openers were fixed: 605 stock first lines cut and 2,465 first sentences rewritten, taking the highest opener share in any persona from 45% to 7%. Every adapter in the table below was trained on the 4,352-row file as it was before these fixes. See [docs/training-history.md](docs/training-history.md) |
+| **SFT blend** | 60% Q&A / 40% raw-text continuation (stray space before punctuation removed from the continuation text on 2026-11-10; adapters listed below were trained before the fix, see [docs/data-pipeline.md](docs/data-pipeline.md#space-before-punctuation-fix-2026-11-10)) |
 | **DPO pairs** | 3,564 across 3 engineered rejection strategies |
 | **Augustine / Liguori sets** | 2,726 / 844 ShareGPT conversations |
 | **Source corpus** | KJV per-persona texts + Project Gutenberg + sacred-texts.com + ChristianFOSS |
@@ -122,12 +123,30 @@ and `trainer_state.json`, not from the notebooks. Adapters live under `output/` 
 | **`unsloth/Qwen3.8-27B`** | 2026-08-15 | 544 · 1.71 → 1.36 | 2026-08-15 · 446 | 32 / 32 | **Production** (`biblical_dpo`) |
 | `unsloth/Qwen3.5-4B` | 2026-08-29 | 544 · 2.14 → 1.69 | 2026-08-31 · 446 | 32 / 32 | Small/mobile; GGUF exported |
 | `unsloth/gemma-4-12b-it` | 2026-07-21 | 544 · 1.08 → 0.35 | 2026-07-21 · 446 | 32 / 32 | |
+| `meta-models/Muse-Glimmer-30B` | 2026-11-09 | 544 · 1.69 → 1.29 | 2026-11-10 · 446 (run 1) | 32 / 32 | Not served. DPO run 1 over-trained; see below |
 | `unsloth/gemma-4-E4B-it-unsloth-bnb-4bit` | 2026-04-23 | 327 · 0.91 → 0.40 | — | 32 / 32 | Mobile; GGUF exported |
 | `unsloth/gemma-4-E2B-it-unsloth-bnb-4bit` (v2) | 2026-05-01 | 544 · 1.15 → 0.42 | — | 32 / 32 | Mobile; GGUF exported |
 
 Steps differ (192 vs 544) because the 14B run trained on pre-packed 4096-token chunks and the
 later runs on unpacked conversations at the same effective batch of 8. DPO losses are not
 listed; all DPO runs are one epoch over the 3,564 pairs at 446 steps.
+
+**The one-epoch DPO recipe over-trains.** The Muse Glimmer run (TRL 1.15, beta 0.05) is the
+first whose reward curves were read closely. Reward accuracy reached 1.00 at step 15 of 446
+and loss fell below 0.01 by step 60. The remaining steps kept widening the margin (to about
+16, roughly 320 nats away from the SFT adapter) while the reward on the *chosen* answers fell
+to about -1.4, i.e. the preferred answers became less likely than under SFT alone. Every
+checkpoint before step 350 was deleted by `save_total_limit=3`. The cause is the data: the
+chosen answers are the SFT gold answers, and the SFT adapter already scores the
+`shallow_platitude` rejects at -3.00 nats/token and the `scripture_fabrication` rejects at
+-1.89, against -1.30 for the chosen answers, so DPO learns to suppress a style in a few dozen
+steps. The Glimmer DPO notebook now uses beta 0.25, a 100-step cap, 10 warmup steps,
+checkpoints every 25 steps (all kept), and 180 held-out pairs scored every 25 steps; it stops
+when the held-out chosen reward turns negative and saves the last checkpoint where it was
+still non-negative. **Those settings have not been run yet**, the run-1 Glimmer DPO adapter
+has not been compared against its SFT adapter on the judge rubric, and the earlier bases'
+DPO runs used the same one-epoch recipe and have not been re-examined. The rejected answers
+have not been regenerated.
 
 ---
 
@@ -223,6 +242,7 @@ biblical/
 ├── docs/
 │   ├── data-pipeline.md            How raw texts are cleaned & chunked
 │   ├── sft-data-generation.md      Q&A generation + voice-quality gate + continuation
+│   ├── training-history.md         Running log: what was tried, what the evidence showed, lessons
 │   ├── dpo-data-generation.md      Three rejection strategies for preference pairs
 │   ├── training.md                 Unsloth + QLoRA training config (14B v2 run)
 │   ├── biblical-lora-v1-v2-overview.md   Why v2 was added (Q&A → Q&A + raw text)
@@ -236,39 +256,38 @@ biblical/
 ├── data/                           (gitignored: regenerated locally)
 │   ├── source-raw/                 Untouched originals (Gutenberg, sacred-texts, 15 Bible translations, etc.)
 │   ├── source-clean/               Stripped: nav boilerplate, Imprimaturs, page markers
-│   ├── source-clean/full_biblical_data/   The 26 per-persona KJV concatenations
+│   ├── source-clean/full_biblical_data/   The 26 per-persona KJV concatenations (spacing fixed 2026-11-10)
 │   ├── scripts/clean_source_data.py       Source-aware cleaner (regex, no NLTK needed)
 │   └── training-data/
 │       ├── biblical_persona_v2/    The 26-persona dataset
 │       │   ├── per_persona/<persona>.jsonl     Pre-blend Q&A (one file per voice)
-│       │   ├── biblical_personas_sharegpt.jsonl        Q&A only (2,612)
+│       │   ├── biblical_personas_sharegpt.jsonl        Q&A only (2,609; was 2,612 before 2026-11-10)
 │       │   ├── augmented/continuation/*.jsonl          Raw-text completion tasks
-│       │   ├── biblical_personas_combined_sharegpt.jsonl   Final SFT mix (4,352)
-│       │   ├── biblical_dpo_pairs_raw.jsonl            Pre-gate DPO pairs
-│       │   └── biblical_personas_v2_dpo.jsonl          DPO preference pairs (3,564)
+│       │   ├── biblical_personas_combined_sharegpt.jsonl   Final SFT mix (4,349; was 4,352 before 2026-11-10)
+│       │   ├── wrong_person_questions.jsonl            The 167 flagged questions with a review verdict each
+│       │   ├── opener_rewrites_2026-11-10.jsonl        Every rewritten first sentence, old and new
+│       │   ├── biblical_dpo_pairs_raw_v4_local_sft.jsonl   All 2,400 generated DPO pairs with the judge's keep/drop verdict
+│       │   ├── biblical_personas_v4_dpo_local_sft.jsonl    Current DPO pairs (1,673; rejected answers written by the SFT adapter, judge-filtered)
+│       │   ├── biblical_personas_v4_dpo_local_sft.partial.jsonl   Resume file for the pair-generation notebook
+│       │   └── archive/                                Superseded files (moved 2026-11-11): the original DPO pairs
+│       │                                               (biblical_personas_v2_dpo.jsonl, 3,564, and its raw file), earlier
+│       │                                               local-SFT trial and test files, and the pre-fix copies
+│       │                                               (pre-spacing-fix, pre-wrong-person-fix, pre-opener-fix)
 │       ├── augustine_persona/      augustine_sharegpt.jsonl (2,726) + per_source/
 │       └── liguori_persona/        liguori_sharegpt.jsonl (844) + per_source/
 ├── notebooks/
 │   ├── datagen/
 │   │   ├── biblical_datagen_v2_sft.ipynb      Q&A + continuation pipeline (the core)
-│   │   ├── biblical_datagen_v2_dpo.ipynb      Preference pairs from SFT data
-│   │   ├── biblical_datagen_augustine.ipynb   Augustine-specific datagen
-│   │   ├── biblical_datagen_liguori.ipynb     Liguori-specific datagen
-│   │   ├── biblical_datagen_church_tradition.ipynb    Creeds, catechism, hymns (single voice)
-│   │   ├── biblical_datagen_church_fathers.ipynb      Church Fathers, voice-differentiated
-│   │   ├── biblical_datagen_deuterocanonical.ipynb    Deuterocanon & pseudepigrapha personas
-│   │   ├── biblical_datagen_adam_eve.ipynb            Books of Adam and Eve, narrator voice
-│   │   └── biblical_datagen.ipynb             v1 datagen (kept for diffing)
+│   │   ├── biblical_datagen_v2_dpo-local-sft.ipynb   Current DPO pair generator: rejected answers written in persona by the SFT adapter on a local vLLM server, then filtered by a judge
+│   │   └── archive/                           Superseded (moved 2026-11-11): biblical_datagen_v2_dpo.ipynb (original pair generator),
+│   │                                          biblical_datagen.ipynb (v1), and the augustine, liguori, church_tradition,
+│   │                                          church_fathers, deuterocanonical and adam_eve datagen notebooks
 │   ├── loras/
-│   │   ├── qwen_38_27b/biblical_qwen3_8_27b_{sft,dpo}_unsloth_4bit.ipynb   Production run (current reference)
-│   │   ├── qwen-3.5-4b/biblical_qwen3_5_4b_{sft,dpo}_unsloth_4bit.ipynb    Small/mobile run
-│   │   ├── biblical_qwen3_6_27b_{instruct,dpo}_unsloth_4bit.ipynb
-│   │   ├── biblical_qwen3_5_27b_{instruct,dpo}_unsloth_4bit.ipynb
-│   │   ├── biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb + _dpo_..._v2.ipynb   Documented 14B run
-│   │   ├── biblical_gemma4_12b_unsloth_4bit.ipynb + _dpo_...    Gemma 4 12B
-│   │   ├── biblical_gemma4_31b_{sft,dpo}_unsloth_4bit.ipynb      Written, not run
-│   │   ├── biblical_gemma4_e4b_instruct_unsloth_4bit_mobile.ipynb
-│   │   ├── augustine_/liguori_/church_tradition_qwen3_14b_instruct_unsloth_4bit.ipynb
+│   │   ├── qwen_38_27b/biblical_qwen3_8_27b_{sft,dpo}_unsloth_4bit.ipynb   Current run and the template for new work
+│   │   └── archive/                           Every other training notebook (moved 2026-11-11): meta-glimmer/, qwen-3.5-4b/,
+│   │                                          Qwen3.6 27B, Qwen3.5 27B, Qwen3 14B, Gemma 4 (12B, 31B, E4B), and the
+│   │                                          augustine, liguori and church_tradition 14B notebooks. Their DPO notebooks
+│   │                                          (except meta-glimmer) are written for TRL 0.24 and do not run on TRL 1.x.
 │   │   └── biblical_qwen3_14b_instruct_unsloth_4bit.ipynb       v1
 │   └── old/                        Earlier base-model experiments (Llama 3.1 8B/70B, Mistral, Qwen2.5)
 └── output/<model_name>/{train,lora_adapters,gguf}/   (gitignored)
@@ -309,7 +328,7 @@ Run [notebooks/datagen/biblical_datagen_v2_sft.ipynb](notebooks/datagen/biblical
 
 A built-in **voice-differentiation quality gate** (template-opener contamination + 4-gram opener uniqueness) runs before assembly and refuses to proceed if generic-LLM-isms exceed 30%. See [docs/sft-data-generation.md](docs/sft-data-generation.md).
 
-For DPO data, run [notebooks/datagen/biblical_datagen_v2_dpo.ipynb](notebooks/datagen/biblical_datagen_v2_dpo.ipynb) afterwards — it samples QA triples from the combined SFT file and generates preferred/rejected pairs across three intentionally-different failure modes. See [docs/dpo-data-generation.md](docs/dpo-data-generation.md).
+For DPO data, run [notebooks/datagen/biblical_datagen_v2_dpo-local-sft.ipynb](notebooks/datagen/biblical_datagen_v2_dpo-local-sft.ipynb) **after SFT training**, with the SFT adapter served on a local vLLM server. The SFT adapter itself writes the rejected answers (in persona, under two instructions: drift out of voice, or answer in generalities), and the base model then judges each pair and drops the ones that are not a real preference. See [docs/dpo-data-generation.md](docs/dpo-data-generation.md). The original generator, which wrote rejected answers with a hosted model before any training, is in `notebooks/datagen/archive/`; its pairs turned out to be too easy to teach anything ([history](docs/training-history.md)).
 
 ### 4. Train
 
@@ -322,9 +341,17 @@ The current reference pair is [notebooks/loras/qwen_38_27b/biblical_qwen3_8_27b_
 3. Trains for 1 epoch via TRL `SFTTrainer` with response-only loss masking.
 4. Saves the adapter, runs a sanity-check inference and a cold-reload test.
 
-The DPO notebook resumes that adapter and continues it with `DPOTrainer`, caching reference log-probs to disk so an interrupted run resumes. `MODEL_NAME_BASE` in the SFT notebook is the contract the DPO notebook resolves the adapter path from; change it in both places or not at all.
+The DPO notebook resumes that adapter and continues it with `DPOTrainer` (TRL 1.15). `MODEL_NAME_BASE` in the SFT notebook is the contract the DPO notebook resolves the adapter path from; change it in both places or not at all. The DPO notebook:
 
-The documented 14B run is [notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb](notebooks/loras/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb); [docs/training.md](docs/training.md) has its full hyperparameters and the rationale behind each choice.
+1. Checks that the reference model is a frozen copy of the SFT adapter (not the bare base model) and stops if it is not.
+2. Checks that every pair renders with the same prompt ending and answer ending that SFT trained on.
+3. Caches reference log-probs to disk in shards, so an interrupted run resumes.
+4. Holds out 60 pairs per rejection strategy, scores them every 25 steps, and stops when their chosen reward turns negative.
+5. Runs at most 100 steps at beta 0.25, keeps every checkpoint, and saves the last one that passed the held-out check.
+
+**This pair, together with the two notebooks in `notebooks/datagen/`, is the template for new work.** The order is: generate SFT data, train SFT, serve the SFT adapter, generate DPO pairs from it, train DPO with the held-out check, then compare the SFT and DPO adapters side by side. As of 2026-11-11 two DPO runs on this template have finished (see `docs/training-history.md`), but the SFT-versus-DPO comparison has not been made, so the template describes the process, not a proven result.
+
+Everything else is in `notebooks/loras/archive/`, including the Muse Glimmer pair (`archive/meta-glimmer/`, where the held-out check was first built) and the documented 14B run (`archive/biblical_qwen3_14b_instruct_unsloth_4bit_v2.ipynb`; [docs/training.md](docs/training.md) has its hyperparameters). The archived notebooks keep their saved outputs as run records. They still point at files and output folders that have since moved under `archive/` folders, so they need their paths changed before they can run again.
 
 ### 5. Audit and serve
 
@@ -354,7 +381,7 @@ flowchart TD
 
     MQA --> BLEND["60 / 40 blend<br/>+ shuffle"]
     MCONT --> BLEND
-    BLEND --> COMBINED["combined_sharegpt.jsonl<br/>4,352 conversations"]
+    BLEND --> COMBINED["combined_sharegpt.jsonl<br/>4,349 conversations"]
 
     COMBINED --> DPO["biblical_datagen_v2_dpo.ipynb"]
     DPO --> R1["voice_drift<br/>(strip persona prompt)"]
@@ -433,9 +460,11 @@ The result is a model that **switches voices reliably** based on the system prom
 
 ## Status
 
-Pipeline is **functional end-to-end** and in production: cleaning → datagen → SFT → DPO → adapter audit → vLLM deploy. The 26-voice dataset has been trained on eight base models; Qwen3.8-27B is what users talk to today.
+Pipeline is **functional end-to-end** and in production: cleaning → datagen → SFT → DPO → adapter audit → vLLM deploy. The 26-voice dataset has been trained on nine base models; Qwen3.8-27B is what users talk to today.
 
 For roadmap and v1→v2 design notes, see [docs/biblical-lora-v1-v2-overview.md](docs/biblical-lora-v1-v2-overview.md).
+
+For what has been tried since, what went wrong and what was learned (including why the one-epoch DPO stage turned out to do little), see [docs/training-history.md](docs/training-history.md).
 
 For the current corpus audit and planned augmentations — under-mined source texts, scripture grounding as a third `data_type`, candidate new personas, and per-persona adapters — see [docs/augmentation-roadmap.md](docs/augmentation-roadmap.md).
 

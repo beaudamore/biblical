@@ -198,6 +198,12 @@ CONTINUATION_INSTRUCTIONS = [
 ]
 ```
 
+**Repeated openers fixed, 2026-11-10.** The opener bank in this notebook did not prevent repetition inside a persona: up to 45% of a persona's answers began with the same three words. 605 stock first lines were cut and 2,465 first sentences rewritten in the existing data; the notebook itself is unchanged, and its quality gate still checks only banned openers and openers shared across personas. See [training-history.md](training-history.md).
+
+**Wrong-person questions removed, 2026-11-10.** 155 Q&A pairs were removed from the per-persona files, the Q&A file and the combined training file: 154 questions that asked Moses about events in other people's lives (Abraham, Noah, Adam; his source text includes Genesis) and one that asked Hosea about Jacob's wrestling. The generator still produces such questions for any persona whose source narrates other people; it has not been changed. Counts in this document predate the removal. See [training-history.md](training-history.md).
+
+**Spacing fix, 2026-11-10.** The KJV source text had a stray space before punctuation (`the covenant , the ten commandments`), and because continuation rows are the source text verbatim, 99.8% of continuation answers carried it. It was removed from the source files and from the existing continuation rows in place; see [data-pipeline.md](data-pipeline.md#space-before-punctuation-fix-2026-11-10). Adapters trained before that date saw the unfixed rows.
+
 Each persona produces a continuation `.jsonl` in `data/training-data/biblical_persona_v2/augmented/continuation/<persona>_continuation.jsonl`. Resume-by-skip is on: if the file exists and is non-empty, that persona is skipped.
 
 The training signal here is **pure prose cadence**: there's no LLM-generated answer, just the raw KJV (or other source) text serving as ground truth for "what comes after this seed." That's why this pass costs zero API tokens.
